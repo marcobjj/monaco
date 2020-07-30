@@ -1,0 +1,362 @@
+<!DOCTYPE html> 
+
+<html>
+<head>
+  <title>Javascript Racer - v3 (hills)</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+  <link href="common.css" rel="stylesheet" type="text/css" />
+</head> 
+
+<body> 
+
+
+
+ 
+
+  <div id="racer">
+    <div id="hud">
+    <BR>
+    <BR>
+    <BR>
+    <BR>
+    <BR>
+     <table id="start" style="width:70%;  margin-left:100px;">
+  <tr>
+    <th></th>
+    <th colspan="2"></th>
+  </tr>
+  <tr>
+    <td id="p1">1</td>
+    <td id="p2">2</td>
+  </tr>
+    <tr >
+    <td id="p3">3</td>
+    <td id="p4">4</td>
+  </tr>
+    <tr>
+    <td id="p5">5</td>
+    <td id="p6">6</td>
+  </tr>
+    <tr>
+    <td id="p7">7</td>
+    <td id="p8">8</td>
+  </tr>
+    <tr>
+    <td id="p9">9</td>
+    <td id="p10">10</td>
+  </tr>
+    <tr>
+    <td id="p11">11</td>
+    <td id="p12">12</td>
+  </tr>
+    <tr>
+    <td id="p13">13</td>
+    <td id="p14">14</td>
+  </tr>
+    <tr>
+    <td id="p15">15</td>
+    <td id="p16">16</td>
+  </tr>
+</table>
+</div>
+    <canvas id="canvas">
+      Sorry, this example cannot be run because your browser does not support the &lt;canvas&gt; element
+    </canvas>
+    Loading...
+  </div>
+
+ 
+  
+  
+   <audio src="qualify.mp3">
+  </audio>
+  <audio src="contentment.mp3">
+  </audio>
+
+  <script src="stats.js"></script>
+  <script src="common.js"></script>
+  <script>
+
+    var fps           = 60;                      // how many 'update' frames per second
+    var step          = 1/fps;                   // how long is each frame (in seconds)
+    var width         = 1024;                    // logical canvas width
+    var height        = 768;                     // logical canvas height
+    var centrifugal   = 0.3;                     // centrifugal force multiplier when going around curves
+    var offRoadDecel  = 0.99;                    // speed multiplier when off road (e.g. you lose 2% speed each update frame)
+    var skySpeed      = 0.001;                   // background sky layer scroll speed when going around curve (or up hill)
+    var hillSpeed     = 0.002;                   // background hill layer scroll speed when going around curve (or up hill)
+    var treeSpeed     = 0.003;                   // background tree layer scroll speed when going around curve (or up hill)
+    var skyOffset     = 0;                       // current sky scroll offset
+    var hillOffset    = 0;                       // current hill scroll offset
+    var treeOffset    = 0;                       // current tree scroll offset
+    var segments      = [];                      // array of road segments
+  //  var stats         = Game.stats('fps');       // mr.doobs FPS counter
+    var canvas        = Dom.get('canvas');       // our canvas...
+    var ctx           = canvas.getContext('2d'); // ...and its drawing context
+    var background    = null;                    // our background image (loaded below)
+    var sprites       = null;                    // our spritesheet (loaded below)
+    var resolution    = null;                    // scaling factor to provide resolution independence (computed)
+    var roadWidth     = 2000;                    // actually half the roads width, easier math if the road spans from -roadWidth to +roadWidth
+    var segmentLength = 200;                     // length of a single segment
+    var rumbleLength  = 3;                       // number of segments per red/white rumble strip
+    var trackLength   = null;                    // z length of entire track (computed)
+    var lanes         = 3;                       // number of lanes
+    var fieldOfView   = 100;                     // angle (degrees) for field of view
+    var cameraHeight  = 1000;                    // z height of camera
+    var cameraDepth   = null;                    // z distance camera is from screen (computed)
+    var drawDistance  = 300;                     // number of segments to draw
+    var playerX       = 0;                       // player x offset from center of road (-1 to 1 to stay independent of roadWidth)
+    var playerZ       = null;                    // player relative z distance from camera (computed)
+    var fogDensity    = 5;                       // exponential fog density
+    var position      = 0;                       // current camera Z position (add playerZ to get player's absolute Z position)
+    var speed         = 0;                       // current speed
+    var maxSpeed      = segmentLength/step;      // top speed (ensure we cant move more than 1 segment in a single frame to make collision detection easier)
+    var accel         =  maxSpeed/5;             // acceleration rate - tuned until it 'felt' right
+    var breaking      = -maxSpeed;               // deceleration rate when braking
+    var decel         = -maxSpeed/5;             // 'natural' deceleration rate when neither accelerating, nor braking
+    var offRoadDecel  = -maxSpeed/2;             // off road deceleration is somewhere in between
+    var offRoadLimit  =  maxSpeed/4;             // limit when off road deceleration no longer applies (e.g. you can always go at least this speed even when off road)
+
+    var keyLeft       = false;
+    var keyRight      = false;
+    var keyFaster     = false;
+    var keySlower     = false;
+	var tick          = 0;
+	var rendered      = false;
+	var gridString    = "";
+	var pit           = false;
+	var ROUND         = 1;
+	var _screen       = -1;
+	var SCREENS       = [660,2030];
+	var transmission  = getParameterByName("transmission");
+	
+	 var qualify         = document.getElementsByTagName("audio")[0];
+	 var contentment     = document.getElementsByTagName("audio")[1];
+	 
+	 getRound();
+
+	 
+	 function getParameterByName(name, url) {
+    if (!url) {
+      url = window.location.href;
+    }
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
+}
+
+
+    
+
+function pitSequence()
+	{
+		document.getElementById("start").style.visibility = "hidden";
+		
+		if(tick > 700) contentment.play();
+		 
+		var enter = (tick -660) * 30;
+		var xmove = enter >= SPRITES.PITSTOP.w +100 ? SPRITES.PITSTOP.w+100: enter;
+		var leavePit = 0;
+		var jacked = 0;
+		
+		
+		//impatience.play();
+		
+		
+		
+	    var sprite = PITWORK.FRAME7;
+		
+		if(tick > 760) sprite = PITWORK.FRAME8;
+				
+		Render.pit(ctx,pitin,SPRITES.PITSTOP,+(leavePit/2)-SPRITES.PITSTOP.w+xmove-850,-50,"pitstop");
+		
+		Render.pit(ctx,sprites,SPRITES.DARDAN_SPIN1,50-leavePit-SPRITES.DARDAN_SPIN1.w+width/2,630-jacked,"car");
+		Render.pit(ctx,pitwork,sprite,+(leavePit/2)-SPRITES.PITSTOP.w+xmove-100,-50,"pitstop");
+		
+		
+		if(tick > 820){
+			
+			if(transmission == "auto") Render.pit(ctx,pitwork,PITWORK.FRAME9,+(leavePit/2)-SPRITES.PITSTOP.w+xmove-100,-50,"pitstop"); 
+			else Render.pit(ctx,pitwork,PITWORK.FRAME13,+(leavePit/2)-SPRITES.PITSTOP.w+xmove-100,-50,"pitstop"); 
+		}
+	}
+	
+	    function getRound()
+	{
+		
+		if(!getParameterByName("round"))  return;
+	
+		ROUND = parseInt(getParameterByName("round"));
+		
+		
+	}
+
+    //=========================================================================
+    // UPDATE THE GAME WORLD
+    //=========================================================================
+
+    function update(dt) {
+     
+	 tick++;
+	 
+	 if(tick >= 2060)
+	 {
+		  window.location.href = "v4.final.html?"+gridString;
+		  return;
+		 
+		 
+	 }
+	  
+     if(tick >= 660)
+	 {
+		  pit = true ;
+	 	  qualify.pause();
+		  return;
+	 }
+	
+	 qualify.play();
+	
+
+    }
+
+    //=========================================================================
+    // RENDER THE GAME WORLD
+    //=========================================================================
+
+    function render() {
+		
+	 if(pit)
+	 {
+		 pitSequence();
+		 pit = false;
+		 return;
+		 
+	 }
+		
+     if(rendered)return;
+	 else rendered= true;
+	 
+      ctx. imageSmoothingEnabled= false;
+      ctx.clearRect(0, 0, width, height);
+	  var p = 0;
+	  
+	  var yourPos =  parseFloat(getParameterByName("yourPos"));
+	  var baseLap =  parseFloat(getParameterByName("baseLapTime"));
+	  var time =  baseLap - ((yourPos-1)*(0.1+Math.random()/4));
+	  
+	  if(time == baseLap) time = baseLap + (0.1+(Math.random()/4));
+	  
+	  for (var i = 1; i <= 16; i++)
+	  {
+	 p = i;
+	 
+	
+	 if( i > yourPos && time < baseLap) time = baseLap +  (0.1+(Math.random()/4));
+	 if( i < yourPos)  time -= (time-baseLap) * Math.random() * 0.25;
+	 if( i > yourPos)  time += (time-baseLap) * Math.random() * 0.5;
+	 
+	 document.getElementById("p"+p).innerHTML = (i==1?"p":p)+" - "+getPilot(getParameterByName("p"+p))+"<BR>(  "+ (p==yourPos ? formatTime(baseLap) : formatTime(time))  +"  )";
+	 
+	 gridString +="p"+p+"="+getParameterByName("p"+p)+"&";
+	 
+	  }
+	 
+	 gridString +="yourPos="+yourPos+"&mode=Race&round="+ROUND;
+	 
+      Render.sprite(ctx,width,height,resolution,roadWidth,background,GRID,0.00046,0,0,0,0,1000);
+	  
+	}
+    
+	  function formatTime(dt) {
+      var minutes = Math.floor(dt/60);
+      var seconds = Math.floor(dt - (minutes * 60));
+      var tenths  = Math.floor(1000 * (dt - Math.floor(dt)));
+      if (minutes > 0)
+        return minutes + "\x27" + (seconds < 10 ? "0" : "") + seconds + "\x22" + tenths;
+      else
+        return seconds + "\x22" + tenths;
+    }
+	
+	function getPilot(_team)
+	{
+		if(_team == "You") return _team;
+		
+		for (var team in TEAMS) {
+   if (TEAMS.hasOwnProperty(team)) {
+      var obj =TEAMS[team];
+	  if(obj.name == _team) return obj.driver;
+      
+   }
+}
+		
+		
+	}
+	
+	
+
+
+  
+    //=========================================================================
+    // THE GAME LOOP
+    //=========================================================================
+
+    Game.run({
+      canvas: canvas, render: render, update: update, stats: null, step: step,
+      images: ["checkerboard","sprites","pitin","pitwork"],
+      keys: [
+        { keys: [KEY.LEFT,  KEY.A], mode: 'down', action: function() { keyLeft   = true;  } },
+        { keys: [KEY.RIGHT, KEY.D], mode: 'down', action: function() { keyRight  = true;  } },
+        { keys: [KEY.UP,    KEY.W], mode: 'down', action: function() { keyFaster = true;  } },
+        { keys: [KEY.DOWN,  KEY.S], mode: 'down', action: function() { keySlower = true;  } },
+        { keys: [KEY.LEFT,  KEY.A], mode: 'up',   action: function() { keyLeft   = false; } },
+        { keys: [KEY.RIGHT, KEY.D], mode: 'up',   action: function() { keyRight  = false; } },
+        { keys: [KEY.UP,    KEY.W], mode: 'up',   action: function() { keyFaster = false; } },
+        { keys: [KEY.DOWN,  KEY.S], mode: 'up',   action: function() { keySlower = false; } },
+		{ keys: [KEY.ENTER],        mode: 'down', action: function() { 
+		
+		if(_screen < 2){
+			_screen++
+			 tick = SCREENS[_screen]; 
+			 
+		}
+		
+		                 }}
+      ],
+      ready: function(images) {
+        background = images[0];
+		sprites    = images[1];
+        pitin    = images[2];
+		pitwork    = images[3];
+		
+        reset();
+      }
+    });
+
+    function reset(options) {
+      options       = options || {};
+      canvas.width  = width  = Util.toInt(options.width,          width);
+      canvas.height = height = Util.toInt(options.height,         height);
+      lanes                  = Util.toInt(options.lanes,          lanes);
+      roadWidth              = Util.toInt(options.roadWidth,      roadWidth);
+      cameraHeight           = Util.toInt(options.cameraHeight,   cameraHeight);
+      drawDistance           = Util.toInt(options.drawDistance,   drawDistance);
+      fogDensity             = Util.toInt(options.fogDensity,     fogDensity);
+      fieldOfView            = Util.toInt(options.fieldOfView,    fieldOfView);
+      segmentLength          = Util.toInt(options.segmentLength,  segmentLength);
+      rumbleLength           = Util.toInt(options.rumbleLength,   rumbleLength);
+      cameraDepth            = 1 / Math.tan((fieldOfView/2) * Math.PI/180);
+      playerZ                = (cameraHeight * cameraDepth);
+      resolution             = height/480;
+     // refreshTweakUI();
+
+    }
+
+  
+    //=========================================================================
+
+  </script>
+
+</body> 

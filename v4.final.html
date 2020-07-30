@@ -1,0 +1,2447 @@
+<!DOCTYPE html> 
+
+
+<head>
+  <title>Javascript Racer - v4 (final)</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+  <link href="common.css" rel="stylesheet" type="text/css" />
+</head> 
+
+<body> 
+
+  <table id="controls">
+    <tr><td id="fps" colspan="2" align="right"></td></tr>
+    <tr>
+ 
+  </table>
+
+ 
+ 
+
+  <div id="racer">
+    <div id="hud">
+    
+      <span id="current_lap_time" class="hud">Lap Time: <span id="current_lap_time_value" class="value">0.0</span></span><BR>
+      <span id="last_lap_time"    class="hud">Last Lap: <span id="last_lap_time_value" class="value">0.0</span></span> <BR>
+      <span id="fast_lap_time"    class="hud">Best Lap: <span id="fast_lap_time_value" class="value">0.0</span></span> <BR><BR><BR><BR><BR>
+      <span id="lap"              class="hud">Lap <span id="lap_value" class="value">1</span>/2</span> <BR> 
+      <span id="pos"              class="hud"><span id="pos_value" class="value"></span></span>  <BR> <BR><BR><BR>
+      <span id="pit"              class="hud"><span id="pit_value" class="value"></span></span> 
+    </div>
+    
+     <div id="hud2">
+     <span id="speed"            class="hud"><span id="speed_value" class="value">0</span><BR>km/h</span> 
+     
+     </div>
+     
+    <canvas id="canvas">
+      Sorry, this example cannot be run because your browser does not support the &lt;canvas&gt; element
+    </canvas>
+    Loading...
+  </div>
+
+  <audio src="engine.wav">
+  </audio>
+  
+   <audio src="engine_rev.wav">
+  </audio>
+  
+  <audio src="engine_neutral.mp3">
+  </audio>
+  
+  <audio src="skid.mp3">
+  </audio>
+  
+  <audio src="hit.mp3">
+  </audio>
+  
+  <audio src="rumble.mp3">
+  </audio>
+  
+   <audio src="lap.wav">
+  </audio>
+  
+  <audio src="final_lap.wav">
+  </audio>
+  
+  <audio src="crash.mp3">
+  </audio>
+ 
+ <audio src="skid_rain.mp3">
+  </audio>
+  
+   <audio src="gear2.mp3">
+  </audio>
+  
+  <audio src="gear3.mp3">
+  </audio>
+  
+  <audio src="gear4.mp3">
+  </audio>
+  
+  <audio src="gear5.mp3">
+  </audio>
+  
+  <audio src="gear6.mp3">
+  </audio>
+ 
+ <audio src="gear7.mp3">
+  </audio>
+  
+  <audio src="gear2_rev.mp3">
+  </audio>
+  
+  <audio src="gear3_rev.mp3">
+  </audio>
+  
+  <audio src="gear4_rev.mp3">
+  </audio>
+  
+  <audio src="gear5_rev.mp3">
+  </audio>
+  
+  <audio src="gear6_rev.mp3">
+  </audio>
+ 
+ <audio src="gear7_rev.mp3">
+  </audio>
+  
+  <audio src="engine_stretch.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+  
+   <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+   <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+   <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+   <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+  
+    
+  <audio src="rival.mp3">
+  </audio>
+  
+    <audio src="rival.mp3">
+  </audio>
+ 
+ <audio src="downshift.mp3">
+  </audio>
+  
+<audio src="red_and_green.mp3">
+  </audio>
+  
+  <audio src="impatience.mp3">
+  </audio>
+  
+  <audio src="nowitsuptoyou.wav">
+  </audio>
+  
+    <audio src="under.mp3">
+  </audio>
+  
+  <audio src="under_rev.mp3">
+  </audio>
+
+  <script src="stats.js"></script>
+  <script src="common.js"></script>
+  
+  <script>
+
+    var fps            = 60;                      // how many 'update' frames per second
+    var step           = 1/fps;                   // how long is each frame (in seconds)
+    var width          = 1024;                    // logical canvas width
+    var height         = 768;                     // logical canvas height
+    var centrifugal    = 0.15;                     // centrifugal force multiplier when going around curves
+	var residual       = 0;                       // for wet condition
+    var offRoadDecel   = 0.99;                    // speed multiplier when off road (e.g. you lose 2% speed each update frame)
+    var skySpeed       = 0.0009;                   // background sky layer scroll speed when going around curve (or up hill)
+    var hillSpeed      = 0.001;                   // background hill layer scroll speed when going around curve (or up hill)
+    var treeSpeed      = 0.003;                   // background tree layer scroll speed when going around curve (or up hill)
+    var skyOffset      = 0;                       // current sky scroll offset
+    var hillOffset     = 0;                       // current hill scroll offset
+    var treeOffset     = 0;                       // current tree scroll offset
+    var segments       = [];                      // array of road segments
+    var cars           = [];                      // array of cars on the road
+	var gears          = [];						// variable number of gears. 4,7 or automatic
+    var stats          = Game.stats('fps');       // mr.doobs FPS counter
+    var canvas         = Dom.get('canvas');       // our canvas...
+    var ctx            = canvas.getContext('2d'); // ...and its drawing context
+    var background     = null;                    // our background image (loaded below)
+    var sprites        = null;                    // our spritesheet (loaded below)
+    var resolution     = null;                    // scaling factor to provide resolution independence (computed)
+    var roadWidth      = 2000;                    // actually half the roads width, easier math if the road spans from -roadWidth to +roadWidth
+    var segmentLength  = 200;                     // length of a single segment
+    var rumbleLength   = 2;                       // number of segments per red/white rumble strip
+    var trackLength    = null;                    // z length of entire track (computed)
+    var lanes          = 2;                       // number of lanes
+    var fieldOfView    = 100;                     // angle (degrees) for field of view
+    var cameraHeight   = 1000;                    // z height of camera
+    var cameraDepth    = null;                    // z distance camera is from screen (computed)
+    var drawDistance   = 300;                     // number of segments to draw
+    var playerX        = 0;                       // player x offset from center of road (-1 to 1 to stay independent of roadWidth)
+    var playerZ        = null;                    // player relative z distance from camera (computed)
+    var fogDensity     = 5;                       // exponential fog density
+    var position       = 0;                       // current camera Z position (add playerZ to get player's absolute Z position)
+    var speed          = 0;                       // current speed
+    var maxSpeed       = segmentLength/step;      // top speed (ensure we cant move more than 1 segment in a single frame to make collision detection easier)
+    var accel          =  maxSpeed/5;             // acceleration rate - tuned until it 'felt' right
+    var breaking       = -maxSpeed/5;               // deceleration rate when braking
+    var decel          = -maxSpeed/10;             // 'natural' deceleration rate when neither accelerating, nor braking
+    var offRoadDecel   = -maxSpeed/2;             // off road deceleration is somewhere in between
+    var offRoadLimit   =  maxSpeed/4;             // limit when off road deceleration no longer applies (e.g. you can always go at least this speed even when off road)
+    var totalCars      = 15;                     // total number of cars on the road
+    var currentLapTime = 0;                       // current lap time
+    var lastLapTime    = null;                   // last lap time
+	var baseLapTime    = 83;
+	var crashed        = 0;
+	var wheelFrame     = 1;
+	var tireTick       = 1;
+	var stretch        = false;
+	var dying          = true;
+	var lapTimes       = [];
+	var teams          = ["Losel","Madonna","Millions","Bestowal", "Firenze","Blanche","Tyrant","Minarae", "May","Bullets","Linden","Rigel","Orchis","Comet","Zeroforce"];//,"Dardan"];
+	
+	
+	var raining          = false;
+	
+	
+
+    var keyLeft        = false;
+    var keyRight       = false;
+	var gameOverTickMain   = 0;
+	//var rightBoost     = 0;
+    var keyFaster      = false;
+    var keySlower      = false;
+	var gridPos        = 16;
+	var laps           = 1;
+	var totalLaps      = 2;
+	var slowMo         = 0;
+	var redLight       = true;
+	var flagmanHit     = 0;
+	var carHits        = 0;
+	var pitDue         = false;
+	var inPit          = 0;
+	var pitTime        = 0;
+	var currentGear    = 1;
+	var transmission   = "manual";
+	var MODE           = "Qualify";
+	var ROUND          = 1;
+	var fadeToBlack    = 30;
+	var finished       = false;
+	var vacuum         = 0;
+	var under          = false;
+	
+	//if(raining) fogDensity = 50;
+
+	
+	
+	getTransmission();
+	getMode();
+	getRound();
+		
+	
+    var gear1         = document.getElementsByTagName("audio")[0];
+	var gear1_rev     = document.getElementsByTagName("audio")[1];
+	var engine_neutral = document.getElementsByTagName("audio")[2];
+	var skid           = document.getElementsByTagName("audio")[3];
+	var hit            = document.getElementsByTagName("audio")[4];
+	var rumble            = document.getElementsByTagName("audio")[5];
+	var lap            = document.getElementsByTagName("audio")[6];
+	var final_lap            = document.getElementsByTagName("audio")[7];
+	var crash              = document.getElementsByTagName("audio")[8];
+	var skid_rain              = document.getElementsByTagName("audio")[9];
+	
+	var gear2              = document.getElementsByTagName("audio")[10];
+	var gear3              = document.getElementsByTagName("audio")[11];
+	var gear4              = document.getElementsByTagName("audio")[12];
+	var gear5              = document.getElementsByTagName("audio")[13];
+	var gear6              = document.getElementsByTagName("audio")[14];
+	var gear7              = document.getElementsByTagName("audio")[15];
+	
+	var gear2_rev          = document.getElementsByTagName("audio")[16];
+	var gear3_rev          = document.getElementsByTagName("audio")[17];
+	var gear4_rev          = document.getElementsByTagName("audio")[18];
+	var gear5_rev          = document.getElementsByTagName("audio")[19];
+	var gear6_rev          = document.getElementsByTagName("audio")[20];
+	var gear7_rev          = document.getElementsByTagName("audio")[21];
+	
+	var engine_stretch          = document.getElementsByTagName("audio")[22];
+	var allEngines = [];
+	
+	for (var i = 0; i < 16; i++)
+	{
+	 allEngines.push(document.getElementsByTagName("audio")[23+i]);
+	}
+	
+	var downshift              = document.getElementsByTagName("audio")[39];
+	var redAndGreen            = document.getElementsByTagName("audio")[40];
+	var impatience             = document.getElementsByTagName("audio")[41];
+	var nowitsuptoyou          = document.getElementsByTagName("audio")[42];
+	var gearunder              = document.getElementsByTagName("audio")[43];
+	var gearunder_rev          = document.getElementsByTagName("audio")[44];
+	
+	var engine = gear1;
+	var engine_rev = gear1_rev;
+	
+
+	
+    var hud = {
+      speed:            { value: null, dom: Dom.get('speed_value')            },
+	  pos:              { value: null, dom: Dom.get('pos_value') 			  },
+	  lap:              { value: null, dom: Dom.get('lap_value') 			  },
+	  pit:              { value: null, dom: Dom.get('pit_value')              },
+      current_lap_time: { value: null, dom: Dom.get('current_lap_time_value') },
+      last_lap_time:    { value: null, dom: Dom.get('last_lap_time_value')    },
+      fast_lap_time:    { value: null, dom: Dom.get('fast_lap_time_value')    }
+    }
+	
+
+    
+var coordArray = [{x:76,y:111},{x:80,y:100},{x:82,y:89},{x:83,y:77},{x:82,y:66},{x:73,y:59},{x:65,y:51},{x:55,y:46},{x:45,y:41},{x:36,y:34},{x:28,y:26},{x:20,y:18},{x:17,y:28},{x:20,y:40},{x:21,y:51},{x:15,y:60},{x:23,y:78},{x:33,y:74},{x:46,y:80},{x:54,y:83},{x:54,y:94},{x:52,y:105},{x:50,y:116},{x:49,y:127},{x:52,y:137},{x:56,y:148},{x:60,y:157},{x:62,y:165},{x:63,y:174},{x:71,y:175},{x:73,y:168},{x:73,y:157},{x:74,y:146},{x:76,y:135},{x:75,y:127},{x:76,y:119}];
+
+
+	function getTransmission()
+	{
+		
+		if(!getParameterByName("transmission")) 
+		{
+			
+			if(transmission == "manual"){ maxSpeed *= 1.25; centrifugal += 0.005;}
+			return;
+			
+		}
+		
+		transmission = getParameterByName("transmission");
+		
+		if(transmission == "manual4" || transmission == "manual7") transmission = "manual";
+		
+		if(transmission == "manual"){ maxSpeed *= 1.25; centrifugal += 0.005;}
+		
+	}
+  	
+	function getRound()
+	{
+		if(!getParameterByName("round")) return;
+		ROUND = parseInt(getParameterByName("round"));
+		if(ROUND > 1) { raining = true; pitDue = true;totalLaps=5;}
+		
+	}
+	
+	function getMode()
+	{
+		if(!getParameterByName("mode")) return;
+		MODE = getParameterByName("mode");
+		
+	if( MODE == "Race") 
+	{
+	
+	teams = [];
+	var team;
+	for (var i = 1; i <= 16; i++)
+	{
+		
+		
+		team = getParameterByName("p"+i);
+		if(team != "You" && team != null) teams.push(team);
+		
+		gridPos = parseInt(getParameterByName("yourPos"));
+	}
+	
+	}
+	
+	if(MODE == "Qualify")
+	{
+		
+		
+	}
+	}
+
+
+    function checkUnderGear()
+	{
+		if(stretch && speed < gears[currentGear -1].min * 0.7)
+		{
+			engine_stretch.currentTime =0;
+		 engine_stretch.pause();
+		 stretch = false;
+			
+		}
+		
+		if(!under && !dying)
+		{
+		if(speed < gears[currentGear -1].min * 0.7)
+		{
+			
+			under = true;
+			engine.pause();
+			engine_rev.pause();
+			
+			engine = gearunder;
+			engine_rev = gearunder_rev;
+			
+			var _t = (speed)/gears[currentGear -1].min;
+			engine.currentTime = engine.duration * _t;
+			engine_rev.currentTime = 0;
+			
+			if(keyFaster) engine.play();
+			if(!keyFaster || keySlower)engine_rev.play();
+			
+			
+			
+		}
+		
+		if(under)
+		{
+		
+		if(dying)
+		{
+			      under = false;
+			      engine = gears[currentGear-1].gear;
+				  engine_rev = gears[currentGear-1].gear_rev;
+				  engine.currentTime = 0;
+			      engine_rev.currentTime = 0;
+				  engine.pause();
+			      engine_rev.pause();
+				  
+		}
+		else if(speed >= gears[currentGear -1].min )//||  engine.currentTime >  engine.duration * 0.95 )	
+		{
+			
+			under = false;
+			      engine = gears[currentGear-1].gear;
+				  engine_rev = gears[currentGear-1].gear_rev;
+				  engine.currentTime = 0;
+			      engine_rev.currentTime = 0;
+				  engine.play();
+			      engine_rev.pause();
+			
+		}
+		else
+		{
+		if(keyFaster) {engine.play();    engine_rev.pause();}
+			 if(!keyFaster || keySlower){ engine_rev.play();  engine.pause();  }
+			
+		}
+			
+		}
+		
+		}
+		
+		
+		
+	}
+//=========================================================================
+    // UPDATE THE GAME WORLD
+    //=========================================================================
+
+    function update(dt) {
+		
+	  if(crashed != 0) {
+		  
+		  gameOverTickMain++;
+		 
+		  if(MODE == "Qualify" && crash.currentTime >= 2){crash.pause();crash.currentTime = 0;}
+	  
+	  }
+      
+	  if(slowMo > 0) 
+	  {
+		 
+		  slowMo++;
+		  if(slowMo < 4  ) {return;}
+		  else if(slowMo >4){ slowMo = 1; return;}
+		  
+	  }
+	  
+	  if(inPit > 0) inPit++;
+	  if(inPit < 0) inPit++;
+	 
+	  
+      var n, car, carW, sprite, spriteW;
+      var playerSegment = findSegment(position+playerZ);
+      var playerW       = SPRITES.PLAYER_STRAIGHT.w * SPRITES.SCALE;
+      var speedPercent  = speed/maxSpeed;
+      var dx            = dt * speedPercent * 0.95; // at top speed, should be able to cross from left to right (-1 to 1) in 1 second
+	  
+	  
+	  if(speed < maxSpeed/2.5 && Math.abs(playerSegment.curve) <=8 && MODE == "Race") dx *= 2;
+      var startPosition = position;
+		
+	  
+      updateCars(dt, playerSegment, playerW);
+	  var oldPosition = position;
+	  position = Util.increase(position, dt * speed, trackLength);
+	   if(oldPosition > position) 
+	   {
+		  if( MODE == "Qualify") 
+		  {
+			  
+			 // getGrid();
+			 finish();
+			  return;
+		  }
+		  else{ laps++;}
+		   
+	   }
+	  
+	  if(speed <= 0 && !dying ) {
+		  
+		 dying = true;
+		 
+		 var phaseOut = setTimeout(silenceGear, 50, engine_rev, 0);
+		 
+		  
+
+		 
+		 engine_neutral.currentTime =0;
+		 engine_neutral.play();
+	  }
+	  
+	
+	 
+	  if(engine.currentTime/engine.duration > 0.97 && !stretch && !dying) {
+		  
+		  if(under)
+		  {
+			  under = false;
+			  
+			engine = gears[currentGear-1].gear;
+		    engine_rev = gears[currentGear-1].gear_rev;
+			engine.currentTime = 0; 
+			engine.play(); 
+				    
+			  
+		  }
+		  else
+		  {
+		  stretch = true;
+		 var phaseOut = setTimeout(silenceGear, 100, engine, 0);
+		 
+		  
+
+		 engine_rev.currentTime = 0;
+		 engine_stretch.currentTime =0;
+		 engine_stretch.play();
+		  
+		  }
+		  
+	  }
+	  
+	  checkUnderGear();
+	  
+	  if(stretch && dying == false && downshift.currentTime/downshift.duration > 0.98)engine_stretch.volume = 1; 
+	  
+	  if(stretch && engine_stretch.currentTime/engine_stretch.duration > 0.95)
+	  {
+		engine_stretch.currentTime =0;
+		 engine_stretch.play();  
+		  
+	  }
+	   
+	   if(speed ==0 && dying)
+	   {
+		   under = false;
+		   engine.currentTime = 0;
+		   engine.pause();
+		   engine_rev.pause();
+		   engine_neutral.play();
+	   }
+	   if( crashed != 0)
+	   {
+		 engine_neutral.pause();  
+		   
+	   }
+	 
+	 
+  
+      if (keyLeft)
+	  {
+        playerX = playerX - dx;
+	  
+	    
+		
+	  }
+      else if (keyRight)
+	  {
+        playerX = playerX + dx;
+		
+		
+	  }
+		
+	 
+	  
+	 
+      playerX = playerX - (dx * speedPercent * playerSegment.curve * centrifugal);
+	  
+	  
+	 
+	  if(playerSegment.curve == ROAD.CURVE.CHICANE || playerSegment.curve == -ROAD.CURVE.CHICANE) { residual = - (dx * speedPercent * playerSegment.curve * centrifugal ); playerX += residual ;}
+	  
+	  if(raining == true && fogDensity >= 50 && pitDue) { residual = - (0.8*dx * speedPercent * playerSegment.curve * centrifugal); playerX += residual ;}
+	 
+
+      if (keyFaster)
+       { 
+	  
+	   
+	   if(speed < gears[currentGear -1].max + vacuum || transmission != "manual")speed = Util.accelerate(speed, accel*(1-(currentGear/10)), dt);
+	  
+	     if(dying)
+		 {
+			 dying = false;
+			 engine.play(); 
+			 engine_neutral.pause();
+			 engine.currentTime = 0.1;
+			 engine_neutral.currentTime = 0;
+			 engine_rev.currentTime = 0;
+		 }
+	   		 if(engine.currentTime == 0 && !stretch  && !under)
+		 {
+			
+			  
+			 engine.currentTime = engine_rev.currentTime == 0? 0: engine_rev.duration - engine_rev.currentTime ;
+			 engine.play();
+			 engine_rev.pause();
+			 engine_neutral.pause();
+			 engine_neutral.currentTime = 0;
+			 engine_rev.currentTime = 0;
+			
+			 
+		 }
+		 else if (under)
+		 {
+			engine.play();
+			 engine_rev.pause();
+			 engine_neutral.pause(); 
+			 
+		 }
+	  
+	   
+	   }
+      else if (keySlower)
+       { 
+	     speed = Util.accelerate(speed, breaking, dt);
+		 
+		 if(stretch)
+		 {
+			 stretch = false;
+			 
+			  engine_rev.currentTime =0.1;
+			  engine_rev.play();
+			  engine.pause();
+			  engine.currentTime = 0;
+			  
+			  var phaseOut = setTimeout(silenceGear, 100, engine_stretch, 0);
+			 
+		 }
+		  
+		 if(engine_rev.currentTime == 0 && !dying && !under && speed > 0)
+		 {
+			  
+			 engine_rev.currentTime = engine.duration - engine.currentTime ;
+			 if(stretch || engine.currentTime == 0) engine_rev.currentTime =0;
+			 
+			  
+			 engine_rev.play();
+			 engine.pause();
+			 engine.currentTime = 0;
+			 stretch = false;
+			
+			 
+		 }
+		  else if (under)
+		 {
+			engine.pause();
+			 engine_rev.play();
+			 engine_neutral.pause(); 
+			 
+		 }
+	  
+	   }
+      else
+	  {
+        speed = Util.accelerate(speed, decel, dt);
+		
+		 if(stretch)
+		 {
+			 stretch = false;
+			 
+			  engine_rev.currentTime =0.1;
+			  engine_rev.play();
+			  engine.pause();
+			  engine.currentTime = 0;
+			  
+			  var phaseOut = setTimeout(silenceGear, 100, engine_stretch, 0);
+			 
+		 }
+ 
+			 if(engine_rev.currentTime == 0 && speed > 0 && !dying && !under)
+		 {
+			 
+			 engine_rev.currentTime = engine.duration - engine.currentTime;
+			 
+			 if(stretch || engine.currentTime == 0) engine_rev.currentTime =0;
+			 
+			 engine_rev.play();
+			 engine.pause();
+			 engine.currentTime = 0;
+			 
+		
+			 
+			 
+		 }
+		  else if (under)
+		 {
+			engine.pause();
+			 engine_rev.play();
+			 engine_neutral.pause(); 
+			 
+		 }
+	  
+		
+	  }
+
+		if(playerSegment.curve && (keyLeft || keyRight) && speed > 0)
+		{ 
+		speed -= Math.abs(dx * speedPercent * centrifugal * 6000);
+		
+		if(Math.abs(playerSegment.curve) >= 8 && speed/maxSpeed > 0.5)
+		{
+		
+		
+		if(raining == true)
+		{
+		skid_rain.play();
+		if(skid_rain.currentTime > 0.18) skid_rain.currentTime = 0.14; 
+		}
+		else
+		{
+		skid.play();
+		if(skid.currentTime > 0.3) skid.currentTime = 0.15; 
+		}
+		
+		}
+		}
+
+
+		if(Math.abs(playerX) > 0.8 && crashed == 0){
+			
+			
+			  rumble.play();
+			 if(rumble.currentTime > 0.03 * maxSpeed/speed) rumble.currentTime = 0;
+			 
+		}
+		
+		
+	
+		
+		if(crashed!=0) speed = 0;
+		
+		
+	  if(transmission != "manual")gearShiftAuto();
+	  else if(speed > gears[currentGear -1].max +vacuum)speed = Util.interpolate(speed,gears[currentGear -1].max+vacuum,0.03);
+	       
+      if ((playerX < -1) || (playerX > 1)) {
+
+        if (speed > offRoadLimit)
+          speed = Util.accelerate(speed, offRoadDecel, dt);
+		  
+
+        for(n = 0 ; n < playerSegment.sprites.length ; n++) {
+          sprite  = playerSegment.sprites[n];
+          spriteW = sprite.source.w * SPRITES.SCALE;
+          if (Util.overlap(playerX, playerW, sprite.offset + spriteW/2 * (sprite.offset > 0 ? 1 : -1), spriteW)) {
+			  
+           
+			
+		if(sprite.special == "flagman")
+		  {   
+		  flagmanHit = 1;
+		  
+		  }
+		  else if(sprite.special != "banner")
+		  {
+			if(speed > maxSpeed/2)
+			{
+				speed = 0; 
+				
+				crashed = sprite.offset > 0 ? 1 : -1;
+				
+				position = Util.increase(playerSegment.p1.world.z, -playerZ, trackLength);
+				
+				slowMo = 1; 
+				
+				crash.play();
+				
+			}
+			else if(crashed==0)
+			{
+			speed = maxSpeed/5;
+            position = Util.increase(playerSegment.p1.world.z, -playerZ, trackLength); // stop in front of sprite (at front of segment)
+			hit.play();
+			carHits++;
+			if(carHits >= 3) pitDue = true;
+			}
+			
+            break;
+		  }
+		  
+          }
+        }
+      }
+	  
+	 
+	  
+      for(n = 0 ; n < playerSegment.cars.length ; n++) {
+        car  = playerSegment.cars[n];
+        carW = car.sprite.w * SPRITES.SCALE;
+		
+        if (speed > car.speed) {
+          if (Util.overlap(playerX, playerW, car.offset, carW, 0.8)  && MODE == "Race") {
+            speed    = car.speed * (car.speed/speed);
+            position = Util.increase(car.z, -playerZ, trackLength);
+			hit.play();
+			car.hit = 60;
+			car.total_hits++;
+			carHits++;
+			if(carHits >= 3) pitDue = true;
+			
+            break;
+          }
+	
+        }
+      }
+
+      playerX = Util.limit(playerX, -3, 3);     // dont ever let it go too far out of bounds
+      speed   = Util.limit(speed, 0, maxSpeed); // or exceed maxSpeed
+	  
+      if(crashed!=0) Util.limit(speed, 0, 0)
+	  
+      skyOffset  = Util.increase(skyOffset,  skySpeed  * playerSegment.curve * (position-startPosition)/segmentLength, 1);
+      hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position-startPosition)/segmentLength, 1);
+      treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position-startPosition)/segmentLength, 1);
+
+      if (position > playerZ) {
+        if (currentLapTime && (startPosition < playerZ)) {
+          lastLapTime    = currentLapTime;
+		  
+          currentLapTime = 0;
+		  
+		  lapTimes.push(lastLapTime);
+		  
+		  if(laps<=totalLaps && !finished)lap.play();
+		  
+		  if(laps == totalLaps) 
+		  {  
+		   addSprite(0,SPRITES.FLAGMAN1,-0.8,"flagman");
+		   final_lap.play();
+		  }
+		  if(laps > totalLaps)
+		  {
+			   if( MODE == "Race") 
+		  {
+			  finish();
+			 // getGrid();
+			  return;
+		  }
+		  }
+		  
+          if (lastLapTime <= Util.toFloat(Dom.storage.fast_lap_time)) {
+            Dom.storage.fast_lap_time = lastLapTime;
+            updateHud('fast_lap_time', formatTime(lastLapTime));
+          //  Dom.addClassName('fast_lap_time', 'fastest');
+          //  Dom.addClassName('last_lap_time', 'fastest');
+          }
+          else {
+         //   Dom.removeClassName('fast_lap_time', 'fastest');
+         //   Dom.removeClassName('last_lap_time', 'fastest');
+          }
+          updateHud('last_lap_time', formatTime(lastLapTime));
+		  
+	
+		  
+          Dom.show('last_lap_time');
+        }
+        else {
+          if(!redLight)currentLapTime += dt;
+        }
+      }
+	  
+	  if(laps <= totalLaps) updateHud('lap',           laps);
+	  //updateHud('pos',           gridPos);
+      updateHud('speed',            10 * Math.round(speed/500));
+      updateHud('current_lap_time', formatTime(currentLapTime));
+	  
+	  if(MODE == "Qualify" && !finished) updateHud('pit', formatTime(currentLapTime));
+	   if(MODE == "Qualify" && finished ) updateHud('pit', formatTime(lastLapTime));
+	   
+	   
+	  
+    }
+	
+	function finish()
+	{
+		finished = true;
+		fadeToBlack = -30;
+		
+	}
+	
+	function getGrid()
+	{
+		
+		  if(MODE == "Race")
+		  {
+			  baseLapTime = 0;
+			  
+			  for (var j = 0; j < lapTimes.length; j++)
+			  {
+			  baseLapTime+= lapTimes[j];
+			  }
+			  
+			  
+		  }
+		  
+		   var gridString = "";
+		   var p = 0;
+		  for (var i = 0; i < cars.length; i++)
+		  {
+			  if(i>0) gridString +="&";
+			  p ++;
+			  if(p == gridPos) p++;
+			  
+			  gridString += "p"+p+"="+cars[i].team;
+			  
+		  }
+		   gridString+= "&p"+gridPos+"=You";
+		   if(MODE == "Qualify") gridString+="&baseLapTime=" +lastLapTime;
+		   else if(ROUND == 2 && gridPos > 1 && gridPos <= 16) gridString+="&time=" +baseLapTime;
+		   else gridString+="&baseLapTime=" +baseLapTime;
+		   
+		   gridString+="&yourPos="+gridPos;
+		    gridString+="&round="+ROUND;
+			gridString+="&transmission="+transmission;
+			
+		  if(MODE == "Qualify") window.location.href = "grid.html?"+gridString;
+		  else if(ROUND == 2 && gridPos > 1  && gridPos <= 16) window.location.href = "ending.html?"+gridString+"&winner="+getParameterByName("p1");
+		  else window.location.href = "finish.html?"+gridString;
+		
+	}
+	
+	function getParameterByName(name, url) {
+    if (!url) {
+      url = window.location.href;
+    }
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
+    }
+
+	
+	 function lights()
+	 {
+		 
+		 if(redLight)redAndGreen.play();
+		 
+		 //alert(redAndGreen.currentTime);
+		 if(redAndGreen.currentTime <2.5)Render.lights(ctx,light,LIGHTS.NONE,210);
+		 else if(redAndGreen.currentTime <4.75)Render.lights(ctx,light,LIGHTS.RED,210);
+		 else if(redAndGreen.currentTime < redAndGreen.duration)
+		 {
+			 Render.lights(ctx,light,LIGHTS.GREEN,210);
+		     redLight = false;
+		 }
+		 
+		 
+	 }
+	 function silenceGear(sound,gear,sound2)
+	 {
+		 resetGears();
+		 
+		 if(currentGear != gear) {
+			 
+			
+			 sound.pause();
+			 sound.currentTime = 0;
+			 sound2.pause();
+			 sound2.currentTime = 0;
+			 
+			 
+		 }
+		
+		 if(gear != 0) 
+		 {
+			engine_stretch.pause();
+			engine_stretch.currentTime = 0; 
+			engine_neutral.pause();
+			engine_neutral.currentTime = 0; 
+			
+			stretch = false;
+			dying = false;
+			 
+		 }
+		 
+	 }
+	 function resetGears(mode)
+	 {
+	
+	if(!under)
+	{
+		gearunder.currentTime = 0;
+		gearunder_rev.currentTime = 0;
+		gearunder.volume = 1;
+		gearunder_rev.volume = 1;
+		
+		
+	}
+	
+	for (var i = 0; i < gears.length; i++)
+	{ 
+	if(i != currentGear -1 || mode == "all")
+	{
+	gears[i].gear.currentTime = 0;	 
+	gears[i].gear_rev.currentTime = 0;
+	
+	gears[i].gear.volume = 1;	 
+	gears[i].gear_rev.volume = 1;
+	}
+	
+	
+	}
+		 
+	 }
+	  function gearShiftManual(action)
+	 {
+		 under = false;
+		 
+		 if(action == "upshift" )
+		 {
+			 
+			 if(speed >= gears[currentGear -1].min * 0.7)
+			 {
+		           engine_rev.pause();
+				 //  engine_rev.currentTime = 0;
+				
+				 
+				  
+				  var phaseOutGear = setTimeout(silenceGear, 100, engine, currentGear-1,engine_rev);
+				   
+				  engine = gears[currentGear-1].gear;
+				  engine_rev = gears[currentGear-1].gear_rev;
+				  
+				 
+			
+				 // engine.currentTime = 0;
+				  engine.play();
+				  
+			 }
+			 else
+			 {
+				  
+				  var _t = (speed)/gears[currentGear -1].min;
+			engine.currentTime = engine.duration * _t;
+			 }
+				 
+				  
+		 }
+		 
+		 if(action == "downshift")
+		 {
+			 
+			  engine.pause();
+					  engine_rev.pause();
+					  resetGears();
+					 // engine.currentTime = 0;
+					//  engine_rev.currentTime = 0;
+					 // var phaseOutGear = setTimeout(silenceGear, 100, engine_rev, currentGear,engine);
+					  
+					  engine = gears[currentGear-1].gear;
+				      engine_rev = gears[currentGear-1].gear_rev;
+					  
+					  stretch = true;
+					  engine_stretch.currentTime = 0;
+					  engine_stretch.play();
+					  engine_stretch.volume = 0; 
+					  
+					  downshift.currentTime = 0;
+					  if(speed >= gears[currentGear -1].min * 0.7) downshift.play();
+					  
+					
+					  
+		}
+				 
+				 
+				 if(currentGear ==1) accel = maxSpeed/5;
+				 else accel = maxSpeed/10; 
+			 
+		
+	 }
+	
+	 function gearShiftAuto()
+	 {
+		 
+		 for (var i = 0; i < gears.length; i++)
+		 {
+			 if(speed > gears[i].min && speed <= gears[i].max ) 
+			 {
+				 if(currentGear  < i+1)
+				 {
+				   engine_rev.pause();
+				   engine_rev.currentTime = 0;
+				  // engine.pause();
+				  
+				  var phaseOutGear = setTimeout(silenceGear, 100, engine, currentGear,engine_rev);
+				   
+				  engine = gears[i].gear;
+				  engine_rev = gears[i].gear_rev;
+				  
+				  engine.currentTime = 0;
+				  engine.play();
+				//alert(currentGear+1);
+				 }
+				 else if (currentGear  > i+1){
+					
+					  engine.pause();
+					 // engine_rev.pause();
+					  engine.currentTime = 0;
+					  var phaseOutGear = setTimeout(silenceGear, 100, engine_rev, currentGear,engine);
+					  
+					  engine = gears[i].gear;
+				      engine_rev = gears[i].gear_rev;
+					  
+					  engine_rev.currentTime = engine_rev.duration * 0.6;
+					  engine_rev.play();
+					  
+				 }
+				 
+				  currentGear = i+1;
+				  
+				 if(currentGear ==1) accel = maxSpeed/5;
+				 else accel = maxSpeed/10;
+				 
+			 }
+			 
+			 
+		 }
+		 
+		 
+	 }
+
+    //-------------------------------------------------------------------------
+
+    function updateCars(dt, playerSegment, playerW) {
+		
+		
+		//if(playerSegment.index/segments.length > 0.25)  document.getElementById("pos").style.visibility = "visible";
+		
+		
+      var n, car, oldSegment, newSegment, carpos;
+	  
+	
+	  
+      for(n = 0 ; n < cars.length ; n++) {
+		  
+        car         = cars[n];
+		
+		if(car.hit == 1)
+		{
+			car.hit -= 2;
+		}
+		else if(car.hit > 0)
+		{ 
+		car.hit--;
+		car.speed += car.hit;
+		}
+		else if(car.hit<-120)
+		{
+			
+			car.hit = 0;
+		}
+		else if(car.hit < 0)
+		{
+			
+		car.hit --;	
+		car.speed = 0;
+		}
+		
+        oldSegment  = findSegment(car.z);
+       if(!redLight) car.offset  = car.offset + updateCarOffset(car, oldSegment, playerSegment, playerW);
+		car.z + dt * car.speed > trackLength ? car.laps++ : car.laps +=0;
+		
+		
+		if(inPit > 150 && raining) return;
+		
+        if(!redLight ) {
+		
+		
+		
+		  if(oldSegment.curve != 0 && car.speed>car.maxSpeed-Math.abs(oldSegment.curve*100) ) car.speed = Util.easeOut(car.speed,car.maxSpeed-Math.abs(oldSegment.curve*100),0.04);
+		  else if(car.total_hits >0) car.speed = Util.easeOut(car.speed,car.maxSpeed,0.0015);
+	      else transmission == "manual" ? car.speed = Util.easeInOut(car.speed,car.maxSpeed,0.031) : car.speed = Util.easeOut(car.speed,car.maxSpeed,0.0015);
+		}
+		
+		
+			car.z = Util.increase(car.z, dt * car.speed, trackLength);
+		
+        car.percent = Util.percentRemaining(car.z, segmentLength); // useful for interpolation during rendering phase
+        newSegment  = findSegment(car.z);
+		
+		   if (oldSegment != newSegment) {
+          index = oldSegment.cars.indexOf(car);
+          oldSegment.cars.splice(index, 1);
+          newSegment.cars.push(car);
+        }
+      }
+		
+		
+		 if(finished) return;
+		// update car positions
+		
+		
+		
+		cars.sort(function(a, b) {
+        return  (b.z +b.laps * 10000000 )- (a.z + a.laps* 10000000)
+    });
+		
+	
+     
+	  
+	 
+	  
+	  //var trace;
+	  gridPos = 1;
+	  for (var i = 0; i < cars.length; i++)
+	  {
+	  cars[i].position = i + 1;
+	 
+	  if(cars[i].z + cars[i].laps * 10000000 > position+playerZ + laps * 10000000) gridPos = cars[i].position +1;
+	  else if(cars[i].z  + cars[i].laps * 10000000 <= position+playerZ + laps * 10000000)  cars[i].position = gridPos +1;
+	
+	  
+	  
+	  }
+	  
+    }
+
+
+    function updateCarOffset(car, carSegment, playerSegment, playerW) {
+
+      var i, j, dir, segment, otherCar, otherCarW, lookahead = 20, carW = car.sprite.w * SPRITES.SCALE;
+
+      //optimization, dont bother steering around other cars when 'out of sight' of the player
+      if ((carSegment.index - playerSegment.index) > drawDistance)
+       return 0;
+	   
+	   
+	  // var oldPos= null;
+
+      for(i = 1 ; i < lookahead ; i++) {
+        segment = segments[(carSegment.index+i)%segments.length];
+
+        if ((segment === playerSegment) && (car.speed > speed) && (Util.overlap(playerX, playerW, car.offset, carW, 3))) {
+			
+		 //  if(car.position > gridPos){oldPos = car.position; car.position = gridPos; gridPos = oldPos;}
+			
+          if (playerX > 0.5)
+            dir = -1;
+          else if (playerX < -0.5)
+            dir = 1;
+          else
+            dir = (car.offset > playerX) ? 1 : -1;
+          return dir * 1/i * (car.speed-speed)/maxSpeed; // the closer the cars (smaller i) and the greated the speed ratio, the larger the offset
+        }
+		
+
+        for(j = 0 ; j < segment.cars.length ; j++) {
+          otherCar  = segment.cars[j];
+          otherCarW = otherCar.sprite.w * SPRITES.SCALE;
+          if ((car.speed > otherCar.speed) && Util.overlap(car.offset, carW, otherCar.offset, otherCarW, 1.2)) {
+			  
+			
+			  
+            if (otherCar.offset > 0.5)
+              dir = -1;
+            else if (otherCar.offset < -0.5)
+              dir = 1;
+            else
+              dir = (car.offset > otherCar.offset) ? 1 : -1;
+            return dir * 1/i * (car.speed-otherCar.speed)/maxSpeed;
+          }
+        }
+      }
+
+      // if no cars ahead, but I have somehow ended up off road, then steer back on
+      if (car.offset < -0.9)
+        return 0.1;
+      else if (car.offset > 0.9)
+        return -0.1;
+      else
+        return 0;
+    }
+
+    //-------------------------------------------------------------------------
+
+    function updateHud(key, value) { // accessing DOM can be slow, so only do it if value has changed
+      if (hud[key].value !== value) {
+        hud[key].value = value;
+        Dom.set(hud[key].dom, value);
+      }
+    }
+
+    function formatTime(dt) {
+      var minutes = Math.floor(dt/60);
+      var seconds = Math.floor(dt - (minutes * 60));
+      var tenths  = Math.floor((finished == true ? 1000 : 10)* (dt - Math.floor(dt)));
+      if (minutes > 0)
+        return minutes + "\x27" + (seconds < 10 ? "0" : "") + seconds + "\x22" + tenths;
+      else
+        return seconds + "\x22" + tenths;
+    }
+
+    //=========================================================================
+    // RENDER THE GAME WORLD
+    //=========================================================================
+
+    function render() {
+		
+
+      var baseSegment   = findSegment(position);
+      var basePercent   = Util.percentRemaining(position, segmentLength);
+      var playerSegment = findSegment(position+playerZ);
+      var playerPercent = Util.percentRemaining(position+playerZ, segmentLength);
+      var playerY       = Util.interpolate(playerSegment.p1.world.y, playerSegment.p2.world.y, playerPercent);
+	  var playerW       = SPRITES.PLAYER_STRAIGHT.w * SPRITES.SCALE;
+	  var spriteW       = SPRITES.CAR04.w * SPRITES.SCALE;
+	   
+      var maxy          = height;
+
+      var x  = 0;
+      var dx = - (baseSegment.curve * basePercent);
+	  
+	  
+
+      ctx.clearRect(0, 0, width, height);
+	  	
+		
+	  ctx.imageSmoothingEnabled= false;
+	  
+	  if(inPit >= 90)
+	  {
+		  pitSequence();
+		  return;
+		  
+	  }
+	  
+	  tireTick++;
+	
+	  
+       rearView();
+	  
+	  
+	  
+       Render.background(ctx, background, width, height, BACKGROUND.HILLS, hillOffset, resolution * hillSpeed * playerY);
+	  
+	   if(raining && laps > 1 && fogDensity <= 70)fogDensity+= Math.round(Math.random());
+	   if(raining )Render.background(ctx, background, width, height, BACKGROUND.CLOUDS, skyOffset, resolution * skySpeed * playerY);
+   
+
+      var n, i, segment, car, sprite, spriteScale, spriteX, spriteY;
+      var baseX = 0;
+	  var baseX2 = 0;
+	  
+      for(n = 0 ; n < drawDistance ; n++) {
+
+		
+        segment        = segments[(baseSegment.index + n) % segments.length];
+        segment.looped = segment.index < baseSegment.index;
+        segment.fog    = Util.exponentialFog(n/drawDistance, fogDensity);
+        segment.clip   = maxy;
+		
+		
+
+        Util.project(segment.p1, (playerX * roadWidth) - x,      playerY + cameraHeight, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+        Util.project(segment.p2, (playerX * roadWidth) - x - dx, playerY + cameraHeight, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+
+        x  = x + dx;
+        dx = dx + segment.curve;
+		
+		
+		
+		
+
+        if ((segment.p1.camera.z <= cameraDepth)         || // behind us
+            (segment.p2.screen.y >= segment.p1.screen.y) || // back face cull
+            (segment.p2.screen.y >= maxy))                  // clip by (already rendered) hill
+          continue;
+		  
+	
+
+        
+		    var noRumble = false;
+		 if(segments.length - segment.index <= 100)
+		 {
+	      noRumble = true;
+		 }
+		 
+        Render.segment(ctx, width, lanes,
+                       segment.p1.screen.x,
+                       segment.p1.screen.y,
+                       segment.p1.screen.w,
+                       segment.p2.screen.x,
+                       segment.p2.screen.y,
+                       segment.p2.screen.w,
+                       segment.fog,
+                       segment.color,
+					   noRumble);
+
+        maxy = segment.p1.screen.y;
+      }
+
+      for(n = (drawDistance-1) ; n > 0 ; n--) {
+        segment = segments[(baseSegment.index + n) % segments.length];
+		
+		spriteScale = Util.interpolate(segment.p1.screen.scale, segment.p2.screen.scale, 0.5);
+		  
+          spriteX     = Util.interpolate(segment.p1.screen.x,     segment.p2.screen.x,    0.5)
+          spriteY     = Util.interpolate(segment.p1.screen.y,     segment.p2.screen.y,     0.5);
+		  
+		
+		
+		
+		if(n < 4 && raining == true && fogDensity >= 50)Render.rain(ctx,rain,spriteX,spriteY,spriteScale,n);
+		else if(n ==3 && raining == true && fogDensity >= 20)Render.rain(ctx,rain,spriteX,spriteY,spriteScale,n);
+
+        for(i = 0 ; i < segment.cars.length ; i++) {
+          car         = segment.cars[i];
+		  if(MODE == "Race") car.engine.play();
+		  else car.engine.pause();
+		  
+		  var diff = Math.abs(playerSegment.index - segment.index);
+		  if(diff > 75) diff = 75;
+		  if( segment.index - playerSegment.index < 30 && Math.abs(playerX - car.offset) < 0.2) vacuum = car.speed/20;
+		  else vacuum = 0;
+		  
+		 
+		  
+		 car.engine.volume = 1- diff/75;
+		
+		  
+		  if(Math.abs(segment.curve) >= 8) 
+		  {
+			  
+			  if(segment.curve  > 0 ) tireTick%2==0 ? sprite = car.CAR_CENTER_RIGHT :sprite = car.CAR_CENTER_RIGHT2;
+			  else  tireTick%2==0 ? sprite = car.CAR_CENTER_LEFT : sprite = car.CAR_CENTER_LEFT2;
+			  
+			  if(Math.abs(car.offset) > 0.5 && car.offset/segment.curve > 0) tireTick % 2 ==0 ? sprite = car.sprite3: sprite = car.sprite4;
+		  }
+		  
+		  else if(Math.abs(segment.curve) != ROAD.CURVE.HARD && Math.abs(segment.curve) != ROAD.CURVE.VERY_HARD && Math.abs(segment.curve) != ROAD.CURVE.MEDIUM )
+		  {
+			  
+			  
+          tireTick % 2 ==0 ? sprite = car.sprite3: sprite = car.sprite4;
+		  
+		  
+		  if (!Util.overlap(playerX, playerW, car.offset + spriteW/2 * (car.offset > 0 ? 1 : -1), spriteW) && Math.abs(playerSegment.index - segment.index)<10)
+		  {
+			  
+			
+			
+			  if(car.offset < 0 ) tireTick%2==0 ? sprite = car.CAR_CENTER_RIGHT :sprite = car.CAR_CENTER_RIGHT2;
+			  else  tireTick%2==0 ? sprite = car.CAR_CENTER_LEFT : sprite = car.CAR_CENTER_LEFT2;			  
+		  }
+		  
+		  
+		  }
+		  else
+		  {
+			 tireTick % 2 ==0 ? sprite = car.sprite3: sprite = car.sprite4; 
+			  
+		  }
+		  
+          spriteScale = Util.interpolate(segment.p1.screen.scale, segment.p2.screen.scale, car.percent);
+		  
+          spriteX     = Util.interpolate(segment.p1.screen.x,     segment.p2.screen.x,     car.percent) + (spriteScale * car.offset * roadWidth * width/2);
+          spriteY     = Util.interpolate(segment.p1.screen.y,     segment.p2.screen.y,     car.percent);
+         
+		  if(MODE == "Race")Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite, spriteScale, spriteX, spriteY, -0.5, -1, segment.clip,car.team,car.hit);
+		  
+        }
+		
+		
+	
+		
+
+        for(i = 0 ; i < segment.sprites.length ; i++) {
+          sprite      = segment.sprites[i];
+          spriteScale = segment.p1.screen.scale;
+          spriteX     = segment.p1.screen.x + (spriteScale * sprite.offset * roadWidth * width/2);
+          spriteY     = segment.p1.screen.y;
+		  
+		  
+		  
+	      if(flagmanHit > 0 && sprite.special == "flagman") spriteX = -5000;
+		if(sprite.special == "banner") {spriteY -=100; }
+		  
+          Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite.source, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip,sprite.special);
+		  
+	     	  	  if(flagmanHit > 0 && segment.index == playerSegment.index + Math.ceil(flagmanHit/5) && segment.index - playerSegment.index < 40)
+				  
+		  {
+		  
+          spriteScale = segment.p1.screen.scale ;
+		  
+          spriteX     =  segment.p1.screen.x + (spriteScale * (-0.8)* roadWidth * width/2);
+		  
+          spriteY     = segment.p1.screen.y * (100 - flagmanHit*0.2)/100;
+		  
+		  flagmanHit++;
+		  
+			  Render.sprite(ctx, width, height, resolution, roadWidth, sprites,  SPRITES.FLAGMAN3, spriteScale, spriteX, spriteY,  -1 ,-1, segment.clip);
+			  
+			 
+		  }
+	  
+	  
+        }
+
+        if (segment == playerSegment) {
+			
+		var burnout = false;
+			
+	    if(playerSegment.curve && (keyLeft || keyRight) && speed > 0 && !raining)
+		{ 
+		
+		
+		if(Math.abs(playerSegment.curve) > 8 && speed/maxSpeed > 0.7) burnout = true;
+		}
+		
+		if(keySlower  && speed/maxSpeed > 0.8 )burnout = true;
+		
+          Render.player(ctx, width, height, resolution, roadWidth, sprites, speed/maxSpeed,
+                        cameraDepth/playerZ,
+                        (width/2)+Math.abs(inPit), Math.abs(inPit)+ (height/2) - (cameraDepth/playerZ * Util.interpolate(playerSegment.p1.camera.y, playerSegment.p2.camera.y, playerPercent) * height/2),
+                        speed * (keyLeft ? -1 : keyRight ? 1 : 0),
+                        playerSegment.p2.world.y - playerSegment.p1.world.y,crashed,burnout);
+			
+			Render.map(ctx,maps,MAPS.SAN_MARINO,425,150);
+			
+			var currSegment = Math.floor((playerSegment.index/segments.length)*coordArray.length);
+			
+			var perc = ((playerSegment.index/segments.length)*coordArray.length) - currSegment;
+			
+			var nextSeg = 0;
+			
+			if(currSegment < coordArray.length-1) nextSeg = currSegment+1;
+			
+			var dotx = Util.interpolate(coordArray[currSegment].x,coordArray[nextSeg].x,perc);
+			var doty = Util.interpolate(coordArray[currSegment].y,coordArray[nextSeg].y,perc);
+			
+		Render.map(ctx,maps,MAPS.DOT,dotx+425,doty+150);
+		
+					
+						
+        }
+      }
+	  
+	  
+	  lights();
+	   
+	  var rpm;
+	  
+	  currentGear == 1? rpm = 0+speed/maxSpeed :rpm = 0.4;
+	  
+	  
+	  if(engine.currentTime > 0) rpm += engine.currentTime/engine.duration;
+	  if(engine_rev.currentTime > 0) rpm += 1 - (engine_rev.currentTime/engine_rev.duration);
+	  
+	  if(rpm > 1) rpm = 1;
+	  
+	  if(stretch) rpm = 1;
+	  if(under && keyFaster) rpm = ( engine.currentTime/engine.duration)/3;
+	  else if(under && (!keyFaster || keySlower)) rpm = (1-( engine_rev.currentTime/engine_rev.duration))/3;
+	  
+	  if(dying) rpm = 0;
+	  
+	  Render.tachometer(ctx,tachometer,TACHOMETER.BACKGROUND,300,rpm,transmission,currentGear-1);
+	  
+	  if(pitDue && raining && fogDensity >= 50) Render.pit(ctx,trouble_pitin,playerSegment.index < segments.length - 150 ? WARNING.RAIN : WARNING.PIT_IN,0,300,"sign");
+	  else if(pitDue && carHits > 2 && MODE == "Race") Render.pit(ctx,trouble_pitin,playerSegment.index < segments.length - 150 ? WARNING.TROUBLE : WARNING.PIT_IN,0,300,"sign");
+	  
+	  
+	 
+	  
+	    if(redLight)
+		{
+		if(fadeToBlack > 0) fadeToBlack--;
+		
+		if(fadeToBlack <= 30){ 
+		
+		ctx.fillStyle = 'rgba(0,0,0,'+(fadeToBlack/30)+')';
+		
+        ctx.fillRect(0,0,width,height);
+		}
+	
+		}
+	
+	  if(finished)
+	  {
+		 
+		 fadeToBlack++;
+		 
+		 if( fadeToBlack > 0)
+		 {
+			 
+			 ctx.fillStyle = 'rgba(0,0,0,'+(fadeToBlack/30)+')';
+		
+        ctx.fillRect(0,0,width,height);
+		 }
+		  if(fadeToBlack==30)
+		  {
+			getGrid();  
+			  
+		  }
+		  
+		if(MODE == "Race")  document.getElementById("hud").style.visibility = "hidden";
+		  document.getElementById("hud2").style.visibility = "hidden";
+	  }
+	  
+	   if(playerSegment.index/segments.length > 0.25 || laps > 1 || MODE == "Race" || finished) Render.position(ctx,positions,(width/2) - 120,235,gridPos);
+	   
+	  
+	   
+	   if(gameOverTickMain > 300 && MODE == "Race")
+		{
+			
+			
+			var j = Math.floor((gameOverTickMain - 301)/4);
+			
+		
+		  
+		  	if(j > GAMEOVER.ANIM.length -1) j = GAMEOVER.ANIM.length -1;
+			
+		
+		
+			  Render.over(ctx,gameover,   GAMEOVER.ANIM[j],  0,0 );
+			
+		
+		}
+		var wait = 300;
+		if(MODE == "Race") wait = 650;
+		
+		if(gameOverTickMain > wait)
+		{
+			ctx.fillStyle = 'rgba(0,0,0,'+((gameOverTickMain-wait)/50)+')';
+            ctx.fillRect(0,0,width,height);
+			
+		}
+		if(gameOverTickMain > wait + 100)
+		{
+			gridPos = 16;
+		if(MODE == "Qualify") {lastLapTime = 0;}
+		if(MODE == "Race") {baseLapTime = 0;}
+		getGrid();
+			
+		}
+		
+		if(crashed != 0)
+		{
+			
+			document.getElementById("hud").style.visibility = "hidden";
+		  document.getElementById("hud2").style.visibility = "hidden";
+		}
+		
+    }
+	
+	function pitSequence()
+	{
+		var enter = (inPit - 90) * 30;
+		var xmove = enter >= SPRITES.PITSTOP.w +100 ? SPRITES.PITSTOP.w+100: enter;
+		var leavePit = 0;
+		var jacked = 0;
+		speed = 0;
+		engine_neutral.volume= 0;
+		engine_stretch.volume= 0;
+		engine_rev.volume= 0;
+		engine.volume= 0;
+		engine.currentTime = 0;
+		engine_rev.currentTime = 0;
+		
+		playerX = 0.8;
+		
+		impatience.play();
+		if(inPit >= 200)updateHud('pit', formatTime((inPit - 200)/60));
+		document.getElementById("pit").style.visibility = "visible";
+		
+		
+	    var sprite = PITWORK.FRAME6;
+		if(inPit >= 200 && inPit < 260) {sprite = PITWORK.FRAME5;jacked = 10;}
+		if(inPit >= 260 && inPit < 275) { sprite = PITWORK.FRAME4;jacked = 10;}
+		if(inPit >= 275 && inPit < 275+pitTime) {sprite = PITWORK.FRAME3; jacked = 10;}
+		if(inPit >= 275+pitTime && inPit < 275+pitTime+30) sprite = PITWORK.FRAME2;
+		if(inPit >= 275+pitTime+30) {sprite = PITWORK.FRAME1; leavePit = 30*(inPit -  (275+pitTime+30)); }
+		if(inPit >= 275+pitTime+60) 
+		{ 
+		inPit = -60; 
+		currentGear = 4;
+		resetGears("all");
+		
+		speed= gears[currentGear-1].min;
+		
+		engine = gears[currentGear-1].gear;
+				  engine_rev = gears[currentGear-1].gear_rev;
+				  
+		impatience.pause();
+		impatience.currentTime = 0;
+		engine_neutral.volume= 1;
+		engine_stretch.volume= 1;
+		engine_rev.volume= 1;
+		engine.volume= 1;
+		engine.play();
+		
+		pitDue = false;
+		under = false;
+		stretch = false;
+		
+		carHits = 0;
+		nowitsuptoyou.play();
+		document.getElementById("pit").style.visibility = "hidden";
+		
+		}
+		
+		Render.pit(ctx,pitin,SPRITES.PITSTOP,+(leavePit/2)-SPRITES.PITSTOP.w+xmove-850,-50,"pitstop");
+		
+		Render.pit(ctx,sprites,SPRITES.DARDAN_SPIN1,50-leavePit-SPRITES.DARDAN_SPIN1.w+width/2,630-jacked,"car");
+		Render.pit(ctx,pitwork,sprite,+(leavePit/2)-SPRITES.PITSTOP.w+xmove-100,-50,"pitstop");
+	}
+	
+	 function rearView() {
+
+      var baseSegment   = findSegment(position);
+      var basePercent   = Util.percentRemaining(position, segmentLength);
+      var playerSegment = findSegment(position+playerZ);
+      var playerPercent = Util.percentRemaining(position+playerZ, segmentLength);
+      var playerY       = Util.interpolate(playerSegment.p1.world.y, playerSegment.p2.world.y, playerPercent)/4;
+      var maxy          = height;
+	  
+	  
+	  Render.background(ctx, background, width, height, BACKGROUND.HILLS, hillOffset, resolution * hillSpeed * playerY-325);
+	   if(raining)Render.background(ctx, background, width, height, BACKGROUND.CLOUDS, skyOffset, resolution * skySpeed * playerY-325);
+	   
+
+      var x  = 0;
+      var dx = - (baseSegment.curve * basePercent);
+ 
+      
+      var n, i, segment, car, sprite, spriteScale, spriteX, spriteY, seg;
+
+      for(n = 0 ; n < 100 ; n++) {
+		
+        baseSegment.index - n  >= 0 ? seg = baseSegment.index - n: seg = segments.length +(baseSegment.index - n) -1;
+		var looped =false;
+		
+        segment        = segments[seg];
+
+        segment.looped = segment.index > baseSegment.index;
+       segment.fog    = Util.exponentialFog(n/drawDistance, fogDensity * 2);
+        segment.clip   = maxy;
+
+        Util.project(segment.p1,x+(playerX * roadWidth  )  ,    -cameraHeight+playerY*4,position+1200 +( segment.looped ? trackLength : 0) , cameraDepth , width, height, roadWidth);
+        Util.project(segment.p2,x+dx+(playerX * roadWidth)   ,  -cameraHeight+playerY*4,position+1200  +( segment.looped ? trackLength : 0) , cameraDepth , width, height, roadWidth);
+
+
+
+        x  = x - dx;
+        dx = dx - segment.curve;
+      
+		  
+		
+		  
+		
+
+        Render.segment(ctx, width , lanes,
+                       segment.p1.screen.x,
+                       segment.p1.screen.y-350,
+                       segment.p1.screen.w*2,
+                       segment.p2.screen.x,
+                       segment.p2.screen.y-350,
+                       segment.p2.screen.w*2,
+                       segment.fog,
+                       segment.color);
+
+       //maxy = segment.p1.screen.y -430;
+	   
+	
+      
+	  }
+	
+      for(n = 100 ; n >= 0 ; n--) {
+		 
+       baseSegment.index - n  >= 0 ? seg = baseSegment.index - n: seg = segments.length  +(baseSegment.index - n)-1;
+	 
+	
+        segment        = segments[seg];
+
+	
+
+        for(i = 0 ; i < segment.cars.length ; i++) {
+			
+          car         = segment.cars[i];
+		  sprite = car.CAR_FRONT;
+		 
+		   if(MODE == "Race")car.engine.play();
+		  
+		  var diff = Math.abs(playerSegment.index - segment.index);
+		  
+		  if( baseSegment.index - n  < 0) {diff = Math.abs(baseSegment.index - n);}
+		  if(diff > 75) diff = 75;
+		  
+		 car.engine.volume = 1- diff/75;
+		 
+		 
+		   if(Math.abs(playerSegment.index - segment.index) <=25)
+		  {
+          sprite = car.CAR_FRONT;
+		  }
+		  else
+		  {
+			  if(segment.curve > 4) sprite = car.CAR_FRONT_RIGHT;
+			  else if(segment.curve < -4) sprite = car.CAR_FRONT_LEFT;
+			  else    sprite = car.CAR_FRONT;
+			  
+		  }
+		  
+		  
+          spriteScale =  Util.interpolate(segment.p2.screen.scale , segment.p1.screen.scale, 160 );
+
+		  
+		  spriteX     = Util.interpolate(segment.p2.screen.x ,  segment.p1.screen.x  ,0.5)  + (spriteScale * car.offset  * roadWidth * width/2);
+		  
+		
+		
+		  spriteY     = Util.interpolate(segment.p2.screen.y-350,     segment.p1.screen.y-350, 1-car.percent);
+       
+		
+		
+		      	  
+		if(Math.abs(playerSegment.index - segment.index) >2 &&  MODE == "Race")  Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite, spriteScale, spriteX, spriteY,(sprite.offset < 0 ? -1 : 0),-0.4, segment.clip +5 );
+		  
+        }
+		
+		
+		
+		  for(i = 0 ; i < segment.sprites.length ; i++) {
+              sprite      = segment.sprites[i];
+         spriteScale =  Util.interpolate(segment.p2.screen.scale , segment.p1.screen.scale, 160);
+
+		
+		
+		  
+		 spriteX     =  segment.p1.screen.x  + (spriteScale * sprite.offset  * roadWidth * width/2);
+		
+		
+		  spriteY     = Util.interpolate(segment.p1.screen.y-350,     segment.p2.screen.y-350, 0.5);
+		  
+		
+		  
+         Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite.source, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip-350,sprite.special);
+        }
+		
+		
+      }
+	  
+	  
+	 
+    }
+	
+	
+	
+	
+
+    function findSegment(z) {
+      return segments[Math.floor(z/segmentLength) % segments.length]; 
+    }
+
+    //=========================================================================
+    // BUILD ROAD GEOMETRY
+    //=========================================================================
+    function closeCircuit()
+	{
+		
+		var startY =  segments[0].p2.world.y;
+		
+		for (var n = 100; n >= 1; n--)
+		{
+			
+			
+			segments[segments.length-n].p1.world.y += (startY - segments[segments.length-n].p1.world.y)*(1-((n)/100));
+			segments[segments.length-n].p2.world.y += (startY- segments[segments.length-n].p2.world.y)*(1-((n+1)/100));
+			
+		
+			
+			//if(n < 10) alert(segments[segments.length-n].p1.world.y+" "+segments[segments.length-n].p2.world.y+ " "+lastY());
+		}
+		
+		
+		
+	}
+    function lastY() { return (segments.length == 0) ? 0 : segments[segments.length-1].p2.world.y; }
+	
+
+    function addSegment(curve, y) {
+      var n = segments.length;
+      segments.push({
+          index: n,
+             p1: { world: { y: lastY(), z:  n   *segmentLength }, camera: {}, screen: {} },
+             p2: { world: { y: y,       z: (n+1)*segmentLength }, camera: {}, screen: {} },
+          curve: curve,
+        sprites: [],
+           cars: [],
+          color: Math.floor(n/rumbleLength)%2 ? COLORS.DARK : COLORS.LIGHT
+      });
+    }
+
+    function addSprite(n, sprite, offset,special) {
+      segments[n].sprites.push({ source: sprite, offset: offset, special:special });
+    }
+
+    function addRoad(enter, hold, leave, curve, y) {
+      var startY   = lastY();
+      var endY     = startY + (Util.toInt(y, 0) * segmentLength);
+      var n, total = enter + hold + leave;
+	  var billb;
+	  var side = Util.randomChoice([-1.4,1.4]);
+	  
+	   if(curve >= -8 && curve <= 8) billb = Util.randomChoice(SPRITES.BILLBOARDS);
+	   
+	   var increment = 1;
+	   
+	   
+	  if(curve == ROAD.CURVE.CHICANE) increment = 3; 
+      for(n = 0 ; n < enter ; n+=increment)
+	  {
+        addSegment(Util.easeIn(0, curve, n/enter), Util.easeInOut(startY, endY, n/total));
+		
+		
+		addSprite(segments.length - 1,SPRITES.WALL,-6);
+		//for(var i = 0; i < 5; i++)
+		//{
+			
+		if(n%4==0)
+		{
+		if(curve < -10) addSprite(segments.length - 1,SPRITES.TURN_LEFT, 1.4);
+		else if(curve > 10) addSprite(segments.length - 1,SPRITES.TURN_RIGHT, -1.4);
+		else if(curve >= -8 && curve <= 8 && Math.random() < 0.1 && segments.length > 1000)
+		{
+			
+			addSprite(segments.length - 1,billb,side);
+			
+		}
+
+		}
+		 if(n%2==0 && n < 24)
+		{
+	     if(curve == -ROAD.CURVE.CHICANE ){ addSprite(segments.length - 1,SPRITES.CHICANE_AHEAD, 1.4); 
+		 
+		 if (n > 10) addSprite(segments.length - 1,SPRITES.TIRES,-1.4);
+		 
+		 
+		 }
+	     else if(curve == ROAD.CURVE.CHICANE  ) { addSprite(segments.length - 1,SPRITES.CHICANE_AHEAD, -1.4);  addSprite(segments.length - 1,SPRITES.TIRES, 1.4); }
+		 
+		}
+			
+		//}
+	  }
+	
+      for(n = 0 ; n < hold ; n+=increment)
+	  {
+        addSegment(curve, Util.easeInOut(startY, endY, (enter+n)/total));
+		addSprite(segments.length - 1,SPRITES.WALL,-6);
+		
+		if(n%4==0)
+		{
+		if(curve < -10) addSprite(segments.length - 1,SPRITES.TURN_LEFT, 1.4);
+		else if(curve > 10) addSprite(segments.length - 1,SPRITES.TURN_RIGHT, -1.4);
+		else if(curve >= -8 && curve <= 8 && Math.random() < 0.1 && segments.length > 1000)
+		{
+			
+			addSprite(segments.length - 1,billb,side);
+			
+		}
+		}
+		
+			 if(n%2==0 && n < 24 && n > 10)
+		{
+	     if(curve == -ROAD.CURVE.CHICANE ){ addSprite(segments.length - 1,SPRITES.CHICANE_AHEAD, 1.4); addSprite(segments.length - 1,SPRITES.TIRES,-1.4);}
+	     else if(curve == ROAD.CURVE.CHICANE  ) {
+			 
+			  addSprite(segments.length - 1,SPRITES.CHICANE_AHEAD, -1.4);  
+			  
+			  addSprite(segments.length - 1,SPRITES.TIRES, 1.4);
+			  
+			  
+			  } 
+		}
+		
+	  }
+		
+      for(n = 0 ; n < leave ; n+=increment)
+	  {
+        addSegment(Util.easeInOut(curve, 0, n/leave), Util.easeInOut(startY, endY, (enter+hold+n)/total));
+		addSprite(segments.length - 1,SPRITES.WALL,-6);
+		
+		if(n%4==0)
+		{
+		if(curve < -10) addSprite(segments.length - 1,SPRITES.TURN_LEFT, 1.4);
+		else if(curve > 10) addSprite(segments.length - 1,SPRITES.TURN_RIGHT, -1.4);
+		else if(curve >= -8 && curve <= 8 && Math.random() < 0.1 && segments.length > 1000)
+		{
+			
+			addSprite(segments.length - 1,billb,side);
+			
+		}
+		
+		}
+	
+	
+	
+		
+	  }
+    }
+
+    var ROAD = {
+      LENGTH: { NONE: 0, SHORT:  25, MEDIUM:   50, LONG:  100 },
+      HILL:   { NONE: 0, LOW:    20, MEDIUM:   40, HIGH:   60 },
+      CURVE:  { NONE: 0, EASY:   4, MEDIUM:    8,  HARD:    16 ,VERY_HARD:32, CHICANE:10}
+    };
+
+    function addStraight(num) {
+      num = num || ROAD.LENGTH.MEDIUM;
+      addRoad(num, num, num, 0, 0);
+    }
+
+    function addHill(num, height) {
+      num    = num    || ROAD.LENGTH.MEDIUM;
+      height = height || ROAD.HILL.MEDIUM;
+      addRoad(num, num, num, 0, height);
+    }
+
+    function addCurve(num, curve, height) {
+      num    = num    || ROAD.LENGTH.MEDIUM;
+      curve  = curve  || ROAD.CURVE.MEDIUM;
+      height = height || ROAD.HILL.NONE;
+      addRoad(num, num, num, curve, height);
+    }
+        
+    function addLowRollingHills(num, height) {
+      num    = num    || ROAD.LENGTH.SHORT;
+      height = height || ROAD.HILL.LOW;
+      addRoad(num, num, num,  0,                height/2);
+      addRoad(num, num, num,  0,               -height);
+      addRoad(num, num, num,  ROAD.CURVE.EASY,  height);
+      addRoad(num, num, num,  0,                0);
+      addRoad(num, num, num, -ROAD.CURVE.EASY,  height/2);
+      addRoad(num, num, num,  0,                0);
+    }
+
+    function addSCurves(type, dir) {
+		var difficulty = ROAD.CURVE.CHICANE;
+		
+		
+		
+		if(type == ROAD.LENGTH.LONG)  difficulty = ROAD.CURVE.MEDIUM;
+		
+      addRoad(ROAD.LENGTH.NONE, type, ROAD.LENGTH.NONE,  -difficulty * dir,    ROAD.HILL.NONE);
+       addRoad(ROAD.LENGTH.NONE, type, ROAD.LENGTH.NONE,  difficulty* dir,    ROAD.HILL.NONE);
+	      addRoad(ROAD.LENGTH.NONE, type, ROAD.LENGTH.NONE, -difficulty * dir,    ROAD.HILL.NONE);
+
+ 
+    }
+
+    function addBumps() {
+      addRoad(10, 10, 10, 0,  5);
+      addRoad(10, 10, 10, 0, -2);
+      addRoad(10, 10, 10, 0, -5);
+      addRoad(10, 10, 10, 0,  8);
+      addRoad(10, 10, 10, 0,  5);
+      addRoad(10, 10, 10, 0, -7);
+      addRoad(10, 10, 10, 0,  5);
+      addRoad(10, 10, 10, 0, -2);
+    }
+	
+	function addBanner(seg)
+	{
+		 addSprite(seg,SPRITES.BANNER_HOSTERS,-0.1,"banner");
+		
+	}
+    
+    function addDownhillToEnd(num) {
+      num = num || 200;
+	 
+	 // alert(-lastY()/segmentLength);
+	  
+      addRoad(num, num, num, ROAD.CURVE.NONE, -lastY()/segmentLength);
+    }
+
+    function resetRoad() {
+		
+	resetHud();
+	
+      segments = [];
+	  addStraight(ROAD.LENGTH.MEDIUM);
+	   addCurve(ROAD.LENGTH.LONG, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
+     
+	 addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
+	 addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
+	 //addStraight(ROAD.LENGTH.SHORT);
+	 addCurve(ROAD.LENGTH.LONG, ROAD.CURVE.EASY, ROAD.HILL.NONE);
+	 addStraight(ROAD.LENGTH.SHORT);
+	 addCurve(ROAD.LENGTH.LONG, ROAD.CURVE.EASY, ROAD.HILL.NONE);
+	 addCurve(ROAD.LENGTH.SHORT, ROAD.CURVE.EASY, ROAD.HILL.NONE);
+	  addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.VERY_HARD, ROAD.HILL.NONE);
+	  
+	 // addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
+	   addStraight(ROAD.LENGTH.MEDIUM);
+	    addCurve(ROAD.LENGTH.LONG, ROAD.CURVE.EASY, ROAD.HILL.NONE);
+	   
+	   addCurve(ROAD.LENGTH.SHORT, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
+	// addCurve(ROAD.LENGTH.SHORT,  -ROAD.CURVE.EASY, ROAD.HILL.NONE);
+	addStraight(ROAD.LENGTH.SHORT);
+	   addCurve(ROAD.LENGTH.SHORT, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
+	   
+     // addLowRollingHills();
+      addSCurves(ROAD.LENGTH.LONG,-1);
+	  addCurve(ROAD.LENGTH.SHORT, -ROAD.CURVE.MEDIUM, ROAD.HILL.LOW);
+	  
+	 
+     
+      addBumps();
+	  addStraight(ROAD.LENGTH.SHORT);
+	  
+	   addCurve(ROAD.LENGTH.LONG, -ROAD.CURVE.MEDIUM, ROAD.HILL.MEDIUM);
+     // addLowRollingHills();
+      
+      addStraight();
+      addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
+	  
+	    addSCurves(ROAD.LENGTH.SHORT,1);
+	  
+	     addStraight();
+		
+		
+	  addCurve(ROAD.LENGTH.LONG, -ROAD.CURVE.HARD, ROAD.HILL.LOW);
+    
+
+	 addDownhillToEnd();
+	 
+	  
+      
+      addSCurves(ROAD.LENGTH.MEDIUM,1);
+	  
+     addStraight(ROAD.LENGTH.LONG);
+	 closeCircuit();
+	 addBanner(75);
+
+      resetSprites();
+	  
+      resetCars();
+	  
+	  
+	  
+	  resetTransmission();
+
+      segments[findSegment(playerZ).index + 2].color = COLORS.START;
+      segments[findSegment(playerZ).index + 3].color = COLORS.START;
+      for(var n = 0 ; n < rumbleLength ; n++)
+        //segments[segments.length-1-n].color = COLORS.FINISH;
+
+      trackLength = segments.length * segmentLength;
+    }
+	
+	function resetHud()
+	{
+		 document.getElementById("pos").style.visibility = "hidden";
+		 
+		if(MODE == "Qualify")
+		{
+			 document.getElementById("current_lap_time").style.visibility = "hidden";
+			 document.getElementById("last_lap_time").style.visibility = "hidden";
+			 document.getElementById("fast_lap_time").style.visibility = "hidden";
+			 document.getElementById("lap").style.visibility = "hidden";
+			
+		}
+		
+	}
+
+
+    function resetSprites() {
+      var n, i;
+
+
+	
+
+      for(n = 250 ; n < 1000 ; n += 5) {
+        addSprite(n,     SPRITES.TIRES, 1.6);
+     //  addSprite(n + Util.randomInt(0,5), SPRITES.TREE1, -1 - (Math.random() * 2));
+        addSprite(n + Util.randomInt(0,5), Util.randomChoice(SPRITES.PLANTS), 2 + (Math.random() * 3));
+      }
+
+      for(n = 200 ; n < segments.length ; n += 50) {
+        addSprite(n, Util.randomChoice(SPRITES.PLANTS), -2 * (2 + Math.random() * 2));
+      }
+	  
+
+      var side, sprite, offset;
+      for(n = 1000 ; n < (segments.length-50) ; n += 40) {
+        side      = Util.randomChoice([1, -1]);
+       // addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -side);
+        for(i = 0 ; i < 1 ; i++) {
+          sprite = Util.randomChoice(SPRITES.PLANTS);
+          offset = side * (2 + Math.random() * 2);
+          addSprite(n + Util.randomInt(0, 50), sprite, offset);
+		
+        }
+          
+      }
+
+    }
+	function resetTransmission()
+	{
+		
+		//if(transmission == "manual") {maxSpeed *= 1.02;}
+			 gears          = [{min: -1, gear:gear1,gear_rev:gear1_rev,max:maxSpeed/3},
+	                      {min:maxSpeed/3, gear:gear2,gear_rev:gear2_rev,max:maxSpeed/2.5},
+						  {min:maxSpeed/2.5, gear:gear3,gear_rev:gear3_rev,max:maxSpeed/2.1},
+						  {min:maxSpeed/2.1, gear:gear4,gear_rev:gear4_rev,max:maxSpeed/1.75},
+						  {min:maxSpeed/1.75, gear:gear5,gear_rev:gear5_rev,max:maxSpeed/1.5},
+						  {min:maxSpeed/1.5, gear:gear6,gear_rev:gear6_rev,max:maxSpeed/1.25},
+						  {min:maxSpeed/1.25, gear:gear7,gear_rev:gear7_rev,max:maxSpeed}];
+	}
+    function resetCars() {
+		
+	  (gridPos -1)  % 2 == 0 ? playerX = -0.6 : playerX = 0.6;
+	  position = Math.floor( ((1+totalCars-gridPos)/(totalCars+1))*( 45* segmentLength)) +1500 ;
+      cars = [];
+      var n, car, segment, offset, z, sprite, speed, sprite2, sprite3, sprite4, CAR_CENTER_LEFT   , CAR_CENTER_RIGHT   , CAR_CENTER_LEFT2   , CAR_CENTER_RIGHT2   ,CAR_FRONT_LEFT  , CAR_FRONT ,CAR_FRONT_RIGHT, engine, start, max_speed;
+      for (var n = 0 ; n < totalCars ; n++) {
+		  
+		   n + 1 == gridPos ? start = n+1 : start = n;
+		   
+		if(start >= totalCars + 1) break;
+		  
+        offset = start % 2 == 0 ? -0.6 : 0.6;
+		
+		
+        z      = Math.floor( ((1+totalCars-start)/(totalCars+1))*( 45* segmentLength)) +1500 ;
+		
+		for (var i = 0; i < SPRITES.CARS.length; i++)
+		{
+          
+		  engine = allEngines[i];
+		  engine.currentTime = i * 0.5;
+		   
+		 
+		  
+	   if(SPRITES.CARS[i][0].livery == teams[n])
+	   {
+		   
+		 
+		   
+	    sprite = SPRITES.CARS[i][0];
+		sprite2= SPRITES.CARS[i][1];
+		sprite3= SPRITES.CARS[i][2];
+		sprite4= SPRITES.CARS[i][3];
+		CAR_CENTER_LEFT = SPRITES.CARS[i][4];
+		CAR_CENTER_RIGHT= SPRITES.CARS[i][5];
+		CAR_FRONT_LEFT  = SPRITES.CARS[i][6]; 
+		CAR_FRONT       = SPRITES.CARS[i][7];
+		CAR_FRONT_RIGHT = SPRITES.CARS[i][8];
+		CAR_CENTER_LEFT2 = SPRITES.CARS[i][9];
+		CAR_CENTER_RIGHT2= SPRITES.CARS[i][10];
+		
+		break;
+		
+		}
+		else
+		{
+	    sprite = SPRITES.CARS[0][0];
+		sprite2= SPRITES.CARS[0][1];
+		sprite3= SPRITES.CARS[0][2];
+		sprite4= SPRITES.CARS[0][3];
+		CAR_CENTER_LEFT = SPRITES.CARS[0][4];
+		CAR_CENTER_RIGHT= SPRITES.CARS[0][5];
+		CAR_FRONT_LEFT  = SPRITES.CARS[0][6]; 
+		CAR_FRONT       = SPRITES.CARS[0][7];
+		CAR_FRONT_RIGHT = SPRITES.CARS[0][8];
+		CAR_CENTER_LEFT2 = SPRITES.CARS[0][9];
+		CAR_CENTER_RIGHT2= SPRITES.CARS[0][10];
+		
+		
+		
+			
+		}
+		
+		}
+		
+        max_speed  = (maxSpeed * 0.915) -( Math.random() * 500);
+		
+		if( teams[n] == "Madonna" ||  teams[n] == "Millions" ||  teams[n] == "Losel" ||  teams[n] == "Bestowal")  max_speed  = (maxSpeed * 0.93) -( Math.random() * 300);
+		
+		if(raining) max_speed -= 525;
+		speed = 0;
+		
+        car = { offset: offset, z: z, sprite: sprite, speed: speed,maxSpeed:max_speed,sprite2:sprite2,sprite3:sprite3,sprite4:sprite4,CAR_CENTER_LEFT:CAR_CENTER_LEFT,CAR_CENTER_RIGHT:CAR_CENTER_RIGHT,CAR_CENTER_LEFT2:CAR_CENTER_LEFT2,CAR_CENTER_RIGHT2:CAR_CENTER_RIGHT2,CAR_FRONT_LEFT:CAR_FRONT_LEFT,CAR_FRONT:CAR_FRONT,CAR_FRONT_RIGHT:CAR_FRONT_RIGHT, position:start+1,laps: 1,team:teams[n],engine:engine,hit:0,total_hits:0};
+		
+        segment = findSegment(car.z);
+		
+        segment.cars.push(car);
+        cars.push(car);
+      }
+	  
+	  
+    }
+
+    //=========================================================================
+    // THE GAME LOOP
+    //=========================================================================
+
+    Game.run({
+      canvas: canvas, render: render, update: update, stats: stats, step: step,
+      images: ["background", "sprites","gameover","tachometer","rain","maps","lights","pitin","pitwork","positions","trouble_pitin"],
+      keys: [
+        { keys: [KEY.LEFT], mode: 'down', action: function() { keyLeft   = true;  } },
+        { keys: [KEY.RIGHT], mode: 'down', action: function() { keyRight  = true;  } },
+        { keys: [KEY.UP], mode: 'down', action: function() { if(!redLight && inPit <= 0)keyFaster = true;  } },
+        { keys: [KEY.DOWN], mode: 'down', action: function() {if(!redLight && inPit <= 0)keySlower = true;  } },
+        { keys: [KEY.LEFT], mode: 'up',   action: function() { keyLeft   = false; } },
+        { keys: [KEY.RIGHT], mode: 'up',   action: function() { keyRight  = false; } },
+        { keys: [KEY.UP], mode: 'up',   action: function() { keyFaster = false; } },
+		{ keys: [KEY.D], mode: 'down',   action: function() { if(pitDue &&  findSegment(position+playerZ).index > segments.length - 150){pitDue = false; inPit = 1; 
+		pitTime = 180+Math.random()*180;    } } },
+        { keys: [KEY.DOWN], mode: 'up',   action: function() { keySlower = false; } },
+        { keys: [KEY.W], mode: 'down',   action: function() { if(currentGear > 1 && inPit <= 0) {currentGear--;gearShiftManual("downshift");} } },
+        { keys: [KEY.S], mode: 'down',   action: function() { if(currentGear < gears.length  && inPit <= 0) {currentGear++; gearShiftManual("upshift");}} }
+		
+      ],
+      ready: function(images) {
+        background = images[0];
+        sprites    = images[1];
+		gameover    = images[2];
+		tachometer = images[3];
+		rain = images[4];
+		maps = images[5];
+		light = images[6];
+		pitin = images[7];
+		pitwork = images[8];
+		positions = images[9];
+		trouble_pitin = images[10];
+		
+        reset();
+        Dom.storage.fast_lap_time = Dom.storage.fast_lap_time || 180;
+        updateHud('fast_lap_time', formatTime(Util.toFloat(Dom.storage.fast_lap_time)));
+      }
+    });
+
+    function reset(options) {
+      options       = options || {};
+      canvas.width  = width  = Util.toInt(options.width,          width);
+      canvas.height = height = Util.toInt(options.height,         height);
+      lanes                  = Util.toInt(options.lanes,          lanes);
+      roadWidth              = Util.toInt(options.roadWidth,      roadWidth);
+      cameraHeight           = Util.toInt(options.cameraHeight,   cameraHeight);
+      drawDistance           = Util.toInt(options.drawDistance,   drawDistance);
+      fogDensity             = Util.toInt(options.fogDensity,     fogDensity);
+      fieldOfView            = Util.toInt(options.fieldOfView,    fieldOfView);
+      segmentLength          = Util.toInt(options.segmentLength,  segmentLength);
+      rumbleLength           = Util.toInt(options.rumbleLength,   rumbleLength);
+      cameraDepth            = 1 / Math.tan((fieldOfView/2) * Math.PI/180);
+      playerZ                = (cameraHeight * cameraDepth);
+      resolution             = height/480;
+      //refreshTweakUI();
+
+      if ((segments.length==0) || (options.segmentLength) || (options.rumbleLength))
+        resetRoad(); // only rebuild road when necessary
+    }
+
+    //=========================================================================
+    // TWEAK UI HANDLERS
+    //=========================================================================
+/*
+    Dom.on('resolution', 'change', function(ev) {
+      var w, h, ratio;
+      switch(ev.target.options[ev.target.selectedIndex].value) {
+        case 'fine':   w = 1280; h = 960;  ratio=w/width; break;
+        case 'high':   w = 1024; h = 768;  ratio=w/width; break;
+        case 'medium': w = 640;  h = 480;  ratio=w/width; break;
+        case 'low':    w = 480;  h = 360;  ratio=w/width; break;
+      }
+      reset({ width: w, height: h })
+      Dom.blur(ev);
+    });
+
+    Dom.on('lanes',          'change', function(ev) { Dom.blur(ev); reset({ lanes:         ev.target.options[ev.target.selectedIndex].value }); });
+    Dom.on('roadWidth',      'change', function(ev) { Dom.blur(ev); reset({ roadWidth:     Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+    Dom.on('cameraHeight',   'change', function(ev) { Dom.blur(ev); reset({ cameraHeight:  Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+    Dom.on('drawDistance',   'change', function(ev) { Dom.blur(ev); reset({ drawDistance:  Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+    Dom.on('fieldOfView',    'change', function(ev) { Dom.blur(ev); reset({ fieldOfView:   Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+    Dom.on('fogDensity',     'change', function(ev) { Dom.blur(ev); reset({ fogDensity:    Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+
+    function refreshTweakUI() {
+      Dom.get('lanes').selectedIndex = lanes-1;
+      Dom.get('currentRoadWidth').innerHTML      = Dom.get('roadWidth').value      = roadWidth;
+      Dom.get('currentCameraHeight').innerHTML   = Dom.get('cameraHeight').value   = cameraHeight;
+      Dom.get('currentDrawDistance').innerHTML   = Dom.get('drawDistance').value   = drawDistance;
+      Dom.get('currentFieldOfView').innerHTML    = Dom.get('fieldOfView').value    = fieldOfView;
+      Dom.get('currentFogDensity').innerHTML     = Dom.get('fogDensity').value     = fogDensity;
+    }
+
+    //=========================================================================
+*/
+  </script>
+
+</body> 
+</html>

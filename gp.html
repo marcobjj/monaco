@@ -1,0 +1,479 @@
+<!DOCTYPE html> 
+
+<html>
+<head>
+  <title>Javascript Racer - v3 (hills)</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+  <link href="common.css" rel="stylesheet" type="text/css" />
+</head> 
+
+<body> 
+
+
+
+ 
+
+  <div id="racer">
+    <div id="hud">
+    <BR>
+    <BR>
+    <BR>
+    
+    <div id="results" style="width:60%;  margin-left:150px;">
+    </div>
+    <BR>
+     <table id="start" style="width:60%;  margin-left:150px;">
+  <tr>
+    <th></th>
+    <th colspan="1"></th>
+  </tr>
+  <tr>
+    <td id="p1"></td>
+   
+  </tr>
+    <tr >
+    <td id="p2"></td>
+    
+  </tr>
+    <tr>
+    <td id="p3"></td>
+    
+  </tr>
+    <tr>
+    <td id="p4"></td>
+   
+  </tr>
+    <tr>
+    <td id="p5"></td>
+    
+  </tr>
+    <tr>
+   
+    <td id="p6"></td>
+  </tr>
+    <tr>
+    <td id="p7"></td>
+   
+  </tr>
+    <tr>
+    <td id="p8"></td>
+   
+  </tr>
+</table>
+</div>
+    <canvas id="canvas">
+      Sorry, this example cannot be run because your browser does not support the &lt;canvas&gt; element
+    </canvas>
+    Loading...
+  </div>
+
+ 
+  
+  
+
+   
+  
+    <audio src="menu.wav">
+  </audio>
+  
+   <audio src="concentration.mp3">
+  </audio>
+  
+  <audio src="select.wav">
+  </audio>
+
+  <script src="stats.js"></script>
+  <script src="common.js"></script>
+  <script>
+
+    var fps           = 60;                      // how many 'update' frames per second
+    var step          = 1/fps;                   // how long is each frame (in seconds)
+    var width         = 1024;                    // logical canvas width
+    var height        = 768;                     // logical canvas height
+    var centrifugal   = 0.3;                     // centrifugal force multiplier when going around curves
+    var offRoadDecel  = 0.99;                    // speed multiplier when off road (e.g. you lose 2% speed each update frame)
+    var skySpeed      = 0.001;                   // background sky layer scroll speed when going around curve (or up hill)
+    var hillSpeed     = 0.002;                   // background hill layer scroll speed when going around curve (or up hill)
+    var treeSpeed     = 0.003;                   // background tree layer scroll speed when going around curve (or up hill)
+    var skyOffset     = 0;                       // current sky scroll offset
+    var hillOffset    = 0;                       // current hill scroll offset
+    var treeOffset    = 0;                       // current tree scroll offset
+    var segments      = [];                      // array of road segments
+  //  var stats         = Game.stats('fps');       // mr.doobs FPS counter
+    var canvas        = Dom.get('canvas');       // our canvas...
+    var ctx           = canvas.getContext('2d'); // ...and its drawing context
+    var background    = null;                    // our background image (loaded below)
+    var sprites       = null;                    // our spritesheet (loaded below)
+    var resolution    = null;                    // scaling factor to provide resolution independence (computed)
+    var roadWidth     = 2000;                    // actually half the roads width, easier math if the road spans from -roadWidth to +roadWidth
+    var segmentLength = 200;                     // length of a single segment
+    var rumbleLength  = 3;                       // number of segments per red/white rumble strip
+    var trackLength   = null;                    // z length of entire track (computed)
+    var lanes         = 3;                       // number of lanes
+    var fieldOfView   = 100;                     // angle (degrees) for field of view
+    var cameraHeight  = 1000;                    // z height of camera
+    var cameraDepth   = null;                    // z distance camera is from screen (computed)
+    var drawDistance  = 300;                     // number of segments to draw
+    var playerX       = 0;                       // player x offset from center of road (-1 to 1 to stay independent of roadWidth)
+    var playerZ       = null;                    // player relative z distance from camera (computed)
+    var fogDensity    = 5;                       // exponential fog density
+    var position      = 0;                       // current camera Z position (add playerZ to get player's absolute Z position)
+    var speed         = 0;                       // current speed
+    var maxSpeed      = segmentLength/step;      // top speed (ensure we cant move more than 1 segment in a single frame to make collision detection easier)
+    var accel         =  maxSpeed/5;             // acceleration rate - tuned until it 'felt' right
+    var breaking      = -maxSpeed;               // deceleration rate when braking
+    var decel         = -maxSpeed/5;             // 'natural' deceleration rate when neither accelerating, nor braking
+    var offRoadDecel  = -maxSpeed/2;             // off road deceleration is somewhere in between
+    var offRoadLimit  =  maxSpeed/4;             // limit when off road deceleration no longer applies (e.g. you can always go at least this speed even when off road)
+
+    var keyLeft       = false;
+    var keyRight      = false;
+    var keyFaster     = false;
+    var keySlower     = false;
+	var tick          = 0;
+	var rendered      = false;
+	var fadeToBlack   = 0;
+	var fadeToBlack2  = 0;
+	var fadeToBlack3  = 0;
+	var ARROW_Y       = 500;
+	var gpScreen      = 0;
+	var showTransmission = false;
+	var TRANSM        = "auto";
+	var ROUND         = 2;
+	
+	var logoAnim      = [LOGO.FRAME1,LOGO.FRAME2,LOGO.FRAME3,LOGO.FRAME4,LOGO.FRAME5,LOGO.FRAME6,LOGO.FRAME7,
+	LOGO.FRAME8,LOGO.FRAME9,LOGO.FRAME10,LOGO.FRAME11,LOGO.FRAME12,LOGO.FRAME13,LOGO.FRAME14,LOGO.FRAME15,
+	LOGO.FRAME16,
+	LOGO.FRAME17];
+	
+	
+	var teams          = ["Losel","Madonna","Millions","Bestowal", "Firenze","Blanche","Tyrant","Minarae", "May","Bullets","Linden","Rigel","Orchis","Comet","Zeroforce","Dardan"];
+	
+	
+	var cars          = [{x:  width - width * Math.random(), y: 460,car: randomCar(), speed:1+ Math.random() * 2},{x: width - width * Math.random(), y: 460,car: randomCar(), speed: 1+ Math.random() * 2},
+	{x:  width - width * Math.random(), y: 460,car:  randomCar(), speed: 1+ Math.random() * 2}];//{x: width - width * Math.random(), y: 460,car:  randomCar(), speed:1+ Math.random() * 2},{x: width - width * Math.random(), y: 460,car:  randomCar(), 	speed: 1+ Math.random() * 2}];
+	
+
+		
+		
+	getRound();	
+	
+	
+	 var menu     = document.getElementsByTagName("audio")[0];
+	 var concentration    = document.getElementsByTagName("audio")[1];
+	 var selected    = document.getElementsByTagName("audio")[2];
+	 
+	 function getParameterByName(name, url) {
+    if (!url) {
+      url = window.location.href;
+    }
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
+}
+
+
+    function getRound()
+	{
+		
+		if(!getParameterByName("round"))  return;
+	
+		ROUND = parseInt(getParameterByName("round"));
+		
+		if(ROUND > 1)
+		{
+			
+			gpScreen = 1;
+			fadeToBlack = 45;
+			
+		}
+	}
+
+
+		  function randomCar()
+  {
+	  
+	  var pick = Math.floor(Math.random()* teams.length);
+	  var team = teams[pick].toUpperCase();
+	  
+	  var sprite = SPRITES.SPIN_SEQUENCES[team][3];
+	  
+	  return sprite;
+	  
+  }
+  
+    //=========================================================================
+    // UPDATE THE GAME WORLD
+    //=========================================================================
+
+    function update(dt) {
+     
+	
+	
+	 tick++;
+	
+	if(gpScreen > 0)
+	{
+		if(keyLeft || keyRight || keyFaster || keySlower) {menu.play();}
+		
+		
+	}
+
+    }
+
+    //=========================================================================
+    // RENDER THE GAME WORLD
+    //=========================================================================
+
+    function render() {
+		ctx.imageSmoothingEnabled= false;
+		   concentration.play();
+		   
+		if(showTransmission){ selectTransmission(); return;}
+		
+	    if(fadeToBlack >= 45) {showMenu(); return;}
+		
+		Render.sprite(ctx,width,height,resolution,roadWidth,welcome,WELCOME.DARDAN,0.00045,0,0);
+		
+		if(gpScreen >0)
+		{
+			fadeToBlack++;
+			ctx.fillStyle = 'rgba(0,0,0,'+((fadeToBlack)/45)+')';
+            ctx.fillRect(0,0,width,height);
+			
+		}
+	 
+	}
+    
+
+	
+	
+		function showMenu()
+	{
+		if(ROUND == 2)
+		{
+		ctx.fillStyle = 'rgba(189,189,189,1)';
+            ctx.fillRect(0,0,width,height);
+			
+		}
+		else if(ROUND == 1)
+		{
+			
+			ctx.fillStyle = 'rgba(107,109,255,1)';
+            ctx.fillRect(0,0,width,height);
+			
+			
+		}
+		 Render.sprite(ctx,width,height,resolution,roadWidth,titlescreen,TITLESCREEN.LAYER2,0.00045,0,0);
+		 
+	
+		 
+		 		for (var i = 0; i < cars.length; i++)
+		{
+			
+			if( cars[i].speed < 1)  cars[i].speed = 1;
+			
+			cars[i].x -= cars[i].speed * 3;
+			
+if (cars[i].x < - 200){cars[i].x = 650 - 200 * Math.random();
+			
+					cars[i].car = randomCar();
+			}
+			
+			Render.sprite(ctx,width,height,resolution,roadWidth,sprites,cars[i].car,0.00054,0,0,cars[i].x/100,
+			(-75+cars[i].y+ i*32)/100);
+		
+			
+			
+			
+		}
+		
+
+		
+		
+	
+	
+		  if(ROUND == 1)Render.sprite(ctx,width,height,resolution,roadWidth,titlescreen,TITLESCREEN.SAN_MARINO,0.00045,0,0);
+		   else   if(ROUND == 2) Render.sprite(ctx,width,height,resolution,roadWidth,titlescreen,TITLESCREEN.LAYER7,0.00045,0,0);
+		
+		   Render.sprite(ctx,width,height,resolution,roadWidth,titlescreen,TITLESCREEN.LAYER6,0.00045,0,0);
+		 
+		   
+		   
+		   if(fadeToBlack3 >0)
+		{
+			fadeToBlack3++;
+			ctx.fillStyle = 'rgba(0,0,0,'+((fadeToBlack3)/30)+')';
+            ctx.fillRect(0,0,width,height);
+			
+			 if(fadeToBlack3 >= 30) 
+			 window.location.href = "v4.final.html?transmission="+TRANSM+"&round="+ROUND+(ROUND > 1 ? "&mode=Race"+getGridString() : "");
+			return;
+			
+		}
+		
+		if(tick %2 == 0)  Render.sprite(ctx,width,height,resolution,roadWidth,sprites,SPRITES.ARROW,0.00045,525,ARROW_Y);
+		
+		
+		
+	}
+	
+			function selectTransmission()
+		{
+			var selX = 0;
+			if(TRANSM == "auto") selX = 0;
+			if(TRANSM == "manual4") selX = (width/3) - 6;
+			if(TRANSM == "manual7") selX = (width* 2/3) - 12;
+			
+		 Render.sprite(ctx,width,height,resolution,roadWidth,transmission,TRANSMISSION_SCREEN.BACKGROUND,0.00042,0,25);
+	     if(tick % 3 == 0)
+		    Render.sprite(ctx,width,height,resolution,roadWidth,transmission,TRANSMISSION_SCREEN.FRAME1,0.00042,selX,25);
+		 
+		 if(tick % 3 == 1)
+		    Render.sprite(ctx,width,height,resolution,roadWidth,transmission,TRANSMISSION_SCREEN.FRAME2,0.00042,selX,25);
+	     
+		 if(tick % 3 == 2)
+		    Render.sprite(ctx,width,height,resolution,roadWidth,transmission,TRANSMISSION_SCREEN.FRAME3,0.00042,selX,25);
+	
+	if(fadeToBlack2 > 0)
+	{
+		
+	fadeToBlack2++;
+			ctx.fillStyle = 'rgba(0,0,0,'+((fadeToBlack2-30)/45)+')';
+            ctx.fillRect(0,0,width,height);	
+			
+			if(fadeToBlack2 > 75)
+			{
+				
+				fadeToBlack2 = 0;
+				showTransmission = false;
+				
+			}
+	}
+		}
+  
+       function selector(dir)
+	   {
+		   if(!showTransmission) return;
+		   
+		   if(dir == "right")
+		   {
+			   
+			 if (TRANSM == "auto") TRANSM = "manual4"; 
+			 else if(TRANSM == "manual4") TRANSM = "manual7";
+			   
+		   }
+		   
+		    if(dir == "left")
+		   {
+			   
+			 if (TRANSM == "manual7") TRANSM = "manual4"; 
+			 else if(TRANSM == "manual4") TRANSM = "auto";
+			   
+		   }
+		   
+		   
+	   }
+	   
+	   
+	   	function getGridString()
+	{
+		var gridString = "";
+		
+		var yourPos =  parseFloat(getParameterByName("yourPos"));
+		var transm =  getParameterByName("transmission");
+		
+		  for (var i = 1; i <= 16; i++)
+	  {
+	
+	 
+	if(yourPos == i) i++;
+	
+	 
+	 gridString +="&p"+i+"="+getParameterByName("p"+i);
+	 
+	  }
+	  
+	  return gridString+"&yourPos="+yourPos+"&transmission="+transm;
+		
+		
+	}
+    //=========================================================================
+    // THE GAME LOOP
+    //=========================================================================
+
+    Game.run({
+      canvas: canvas, render: render, update: update, stats: null, step: step,
+      images: ["welcome","sprites","titlescreen","transmission","rain"],
+      keys: [
+        { keys: [KEY.LEFT,  KEY.A], mode: 'down', action: function() { keyLeft   = true; menu.currentTime = 0; selector("left"); } },
+        { keys: [KEY.RIGHT, KEY.D], mode: 'down', action: function() { keyRight  = true; menu.currentTime = 0; selector("right"); } },
+        { keys: [KEY.UP], mode: 'down', action: function() { keyFaster = true; menu.currentTime = 0; ARROW_Y == 500? ARROW_Y = 600 : ARROW_Y = 500;  } },
+        { keys: [KEY.DOWN], mode: 'down', action: function() { keySlower = true; menu.currentTime = 0; ARROW_Y == 500? ARROW_Y = 600 : ARROW_Y = 500; } },
+		{ keys: [KEY.ENTER],        mode: 'down', action: function() { 
+		
+		gpScreen++;
+		
+		if(showTransmission) fadeToBlack2++;
+		
+		if(showTransmission) selected.play();
+		
+		if(gpScreen > 1 && ARROW_Y == 500 ) 
+		{ 
+		
+		fadeToBlack3++;
+		menu.currentTime = 0;
+		menu.play();
+		
+		}
+		else if(gpScreen > 1 && ARROW_Y == 600 ) showTransmission = true;
+		
+		
+		
+		} },
+        { keys: [KEY.LEFT,  KEY.A], mode: 'up',   action: function() { keyLeft   = false; } },
+        { keys: [KEY.RIGHT, KEY.D], mode: 'up',   action: function() { keyRight  = false; } },
+        { keys: [KEY.UP,    KEY.W], mode: 'up',   action: function() { keyFaster = false; } },
+        { keys: [KEY.DOWN,  KEY.S], mode: 'up',   action: function() { keySlower = false; } }
+      ],
+      ready: function(images) {
+        
+		welcome = images[0];
+		sprites = images[1];
+		titlescreen = images[2];
+		transmission = images[3];
+		rain = images[4];
+		
+        reset();
+      }
+    });
+
+    function reset(options) {
+		
+      options       = options || {};
+      canvas.width  = width  = Util.toInt(options.width,          width);
+      canvas.height = height = Util.toInt(options.height,         height);
+      lanes                  = Util.toInt(options.lanes,          lanes);
+      roadWidth              = Util.toInt(options.roadWidth,      roadWidth);
+      cameraHeight           = Util.toInt(options.cameraHeight,   cameraHeight);
+      drawDistance           = Util.toInt(options.drawDistance,   drawDistance);
+      fogDensity             = Util.toInt(options.fogDensity,     fogDensity);
+      fieldOfView            = Util.toInt(options.fieldOfView,    fieldOfView);
+      segmentLength          = Util.toInt(options.segmentLength,  segmentLength);
+      rumbleLength           = Util.toInt(options.rumbleLength,   rumbleLength);
+      cameraDepth            = 1 / Math.tan((fieldOfView/2) * Math.PI/180);
+      playerZ                = (cameraHeight * cameraDepth);
+      resolution             = height/480;
+     // refreshTweakUI();
+
+    }
+
+  
+    //=========================================================================
+
+  </script>
+
+</body> 
